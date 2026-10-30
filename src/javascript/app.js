@@ -41,16 +41,56 @@ const loadSigma = async () => {
             )
             .join(", ");
 
-    const renderer = new Sigma(graph, container, {
-        labelRenderedSizeThreshold: 8,
-        renderEdgeLabels: true,
-        edgeLabelSize: 12,
-        edgeLabelColor: { color: "#64748b" },
-        zIndex: true,
-    });
-
     let focus = current_node;
     let focus_neighbors = focus ? new Set(graph.neighbors(focus)) : undefined;
+
+    const renderer = new Sigma(graph, container, {
+        settings: {
+            itemSizesReference: "screen",
+            labelRenderedSizeThreshold: 8,
+            renderEdgeLabels: true,
+        },
+
+        nodeReducer: (node) => {
+            const result = {};
+
+            if (node === current_node) {
+                result.color = config.current_node.color;
+                result.highlighted = true;
+                result.zIndex = 2;
+            }
+
+            if (focus && node !== focus && !focus_neighbors.has(node)) {
+                result.label = "";
+                result.color = FADED_COLOR;
+                result.zIndex = 0;
+            } else if (focus) {
+                result.labelVisibility = "visible";
+                result.zIndex = Math.max(result.zIndex || 0, 1);
+            }
+
+            return result;
+        },
+
+        edgeReducer: (edge, _data, attributes) => {
+            const result = { label: "", labelColor: "#64748b" };
+
+            if (attributes.negative && !negative_toggle.checked) {
+                result.visibility = "hidden";
+            }
+
+            if (focus) {
+                if (!graph.hasExtremity(edge, focus)) {
+                    result.visibility = "hidden";
+                } else {
+                    result.label = edge_label(edge, focus);
+                    result.labelVisibility = "visible";
+                }
+            }
+
+            return result;
+        },
+    });
 
     const set_focus = (node) => {
         focus = node ?? current_node;
@@ -62,46 +102,6 @@ const loadSigma = async () => {
     renderer.on("leaveNode", () => set_focus());
     renderer.on("clickNode", ({ node }) => {
         window.location = `./personne-${node}.html`;
-    });
-
-    renderer.setSetting("nodeReducer", (node, attributes) => {
-        const result = { ...attributes };
-
-        if (node === current_node) {
-            result.color = config.current_node.color;
-            result.highlighted = true;
-            result.zIndex = 2;
-        }
-
-        if (focus && node !== focus && !focus_neighbors.has(node)) {
-            result.label = "";
-            result.color = FADED_COLOR;
-            result.zIndex = 0;
-        } else if (focus) {
-            result.forceLabel = true;
-            result.zIndex = Math.max(result.zIndex || 0, 1);
-        }
-
-        return result;
-    });
-
-    renderer.setSetting("edgeReducer", (edge, attributes) => {
-        const result = { ...attributes, label: "" };
-
-        if (attributes.negative && !negative_toggle.checked) {
-            result.hidden = true;
-        }
-
-        if (focus) {
-            if (!graph.hasExtremity(edge, focus)) {
-                result.hidden = true;
-            } else {
-                result.label = edge_label(edge, focus);
-                result.forceLabel = true;
-            }
-        }
-
-        return result;
     });
 
     negative_toggle.addEventListener("change", () => renderer.refresh());
