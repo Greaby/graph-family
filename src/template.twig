@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="{{ config.language }}">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+        <link rel="icon" type="image/svg+xml" href="./static/favicon.svg" />
+        <link rel="stylesheet" href="./app.css?{{ timestamp }}" />
+        <script src="./app.js?{{ timestamp }}" defer></script>
+
+        <title>{% if title %}{{ title }} - {% endif %}{{ config.labels.project_title }}</title>
+    </head>
+    <body>
+        <ul class="search-results"></ul>
+
+        <header>
+            <a href="index.html"><h3>{{ config.labels.project_title }}</h3></a>
+
+            <label class="toggle">
+                <input type="checkbox" name="show-negative" checked />
+                {{ config.labels.show_negative }}
+            </label>
+
+            <input type="search" name="search" placeholder="{{ config.labels.search }}" />
+        </header>
+
+        <div class="row">
+            <div class="column-1">
+                {% if title %}
+                <h1>{{ title }}</h1>
+                {% if not has_card %}
+                <p class="missing-card">{{ config.labels.missing_card }}</p>
+                {% endif %}
+                {% endif %}
+
+                {% if relations %}
+                <div class="relations">
+                    <h3>{{ config.labels.relations }}</h3>
+                    <dl>
+                        {% for relation in relations %}
+                        <dt class="{{ relation.negative ? 'negative' : '' }}">
+                            {{ relation.label }}
+                            {% if relation.negative %}<span class="badge">{{ config.labels.negative }}</span>{% endif %}
+                        </dt>
+                        <dd>
+                            {% for person in relation.persons %}
+                            <a href="{{ person.url }}" class="tag{{ person.has_card ? '' : ' no-card' }}">{{ person.name }}</a>
+                            {% if person.note %}<span class="note">({{ person.note }})</span>{% endif %}
+                            {% endfor %}
+                        </dd>
+                        {% endfor %}
+                    </dl>
+                </div>
+                {% endif %}
+
+                <div class="content">{{ content | raw }}</div>
+
+                {% if nearby %}
+                <div class="links">
+                    <h3>{{ config.labels.nearby }}</h3>
+                    <ul>
+                        {% for person in nearby %}
+                        <li><a href="{{ person.url }}">{{ person.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            <div class="column-2">
+                <div id="graph-container" data-node="{{ id }}"></div>
+            </div>
+        </div>
+    </body>
+</html>
