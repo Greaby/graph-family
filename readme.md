@@ -64,6 +64,4 @@ La disposition est déterministe (`seed` dans la config).
 
 ## Déploiement
 
-```bash
-npm run deploy  # publie dist/ sur la branche gh-pages
-```
+Chaque push sur `main` génère le site et le publie sur GitHub Pages (`.github/workflows/deploy.yml`). Dans les paramètres du dépôt, *Settings → Pages → Source* doit être sur **GitHub Actions**.

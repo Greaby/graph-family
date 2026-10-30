@@ -6,14 +6,12 @@
     "scripts": {
         "build": "node build.js",
         "serve": "npx --yes http-server dist -c-1",
-        "test": "node --test",
-        "deploy": "gh-pages -d dist"
+        "test": "node --test"
     },
     "author": "Greaby",
     "license": "ISC",
     "devDependencies": {
         "esbuild": "^0.28.2",
-        "gh-pages": "^6.3.0",
         "graphology-communities-louvain": "^2.0.2",
         "graphology-layout": "^0.6.1",
         "graphology-layout-forceatlas2": "^0.10.1",
