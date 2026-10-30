@@ -1,31 +1,48 @@
 <!DOCTYPE html>
 <html lang="{{ config.language }}">
     <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light" />
+        <meta name="theme-color" content="#ffffff" />
+        <meta name="description" content="{{ description }}" />
+        {% if url %}<link rel="canonical" href="{{ config.base_url }}{{ url }}" />{% endif %}
+
+        <title>{% if title %}{{ title }} - {% endif %}{{ config.labels.project_title }}</title>
 
         <link rel="icon" type="image/svg+xml" href="./static/favicon.svg" />
         <link rel="stylesheet" href="./app.css?{{ timestamp }}" />
-        <script src="./app.js?{{ timestamp }}" defer></script>
-
-        <title>{% if title %}{{ title }} - {% endif %}{{ config.labels.project_title }}</title>
+        <link rel="preload" href="./graph.json" as="fetch" crossorigin />
+        <script type="module" src="./app.js?{{ timestamp }}"></script>
+        <script type="application/json" id="graph-config">{{ front_config | json_encode | raw }}</script>
     </head>
     <body>
-        <ul class="search-results"></ul>
-
-        <header>
-            <a href="index.html"><h3>{{ config.labels.project_title }}</h3></a>
+        <header class="site-header">
+            <a href="index.html" class="site-title">{{ config.labels.project_title }}</a>
 
             <label class="toggle">
                 <input type="checkbox" name="show-negative" checked />
                 {{ config.labels.show_negative }}
             </label>
 
-            <input type="search" name="search" placeholder="{{ config.labels.search }}" />
+            <search>
+                <input
+                    type="search"
+                    name="search"
+                    placeholder="{{ config.labels.search }}"
+                    aria-label="{{ config.labels.search }}"
+                    autocomplete="off"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-controls="search-results"
+                    aria-autocomplete="list"
+                />
+                <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+            </search>
         </header>
 
-        <div class="row">
-            <div class="column-1">
+        <main class="row">
+            <article class="column-1">
                 {% if title %}
                 <h1>{{ title }}</h1>
                 {% if not has_card %}
@@ -34,8 +51,8 @@
                 {% endif %}
 
                 {% if relations %}
-                <div class="relations">
-                    <h3>{{ config.labels.relations }}</h3>
+                <section class="relations" aria-labelledby="relations-title">
+                    <h3 id="relations-title">{{ config.labels.relations }}</h3>
                     <dl>
                         {% for relation in relations %}
                         <dt class="{{ relation.negative ? 'negative' : '' }}">
@@ -50,25 +67,26 @@
                         </dd>
                         {% endfor %}
                     </dl>
-                </div>
+                </section>
                 {% endif %}
 
                 <div class="content">{{ content | raw }}</div>
 
                 {% if nearby %}
-                <div class="links">
-                    <h3>{{ config.labels.nearby }}</h3>
+                <nav class="links" aria-labelledby="nearby-title">
+                    <h3 id="nearby-title">{{ config.labels.nearby }}</h3>
                     <ul>
                         {% for person in nearby %}
                         <li><a href="{{ person.url }}">{{ person.name }}</a></li>
                         {% endfor %}
                     </ul>
-                </div>
+                </nav>
                 {% endif %}
-            </div>
+            </article>
+
             <div class="column-2">
-                <div id="graph-container" data-node="{{ id }}"></div>
+                <div id="graph-container" class="graph" data-node="{{ id }}" role="img" aria-label="{{ config.labels.graph }}"></div>
             </div>
-        </div>
+        </main>
     </body>
 </html>

@@ -50,3 +50,13 @@ test("une relation négative éloigne les personnes", () => {
     assert.ok(graph.getEdgeAttribute("a", "b", "weight") < 0);
     assert.ok(distance(graph, "a", "b") > distance(graph, "e", "f") * 2);
 });
+
+test("la disposition est identique d'un build à l'autre", () => {
+    const cards = {
+        "a.md": "# A\n\nami : B, C\n-marié : D",
+        "b.md": "# B\n\nfratrie : C",
+    };
+    const positions = (graph) => graph.mapNodes((node, { x, y }) => [node, x, y]);
+
+    assert.deepStrictEqual(positions(build(cards).graph), positions(build(cards).graph));
+});

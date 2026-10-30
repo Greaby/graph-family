@@ -29,7 +29,7 @@ const reference_length = (graph) => {
 };
 
 // Écarte les paires reliées négativement jusqu'à une distance cible
-const apply_negative_edges = (graph, negatives, distance_factor) => {
+const apply_negative_edges = (graph, negatives, distance_factor, rng) => {
     const target = reference_length(graph) * distance_factor;
 
     negatives.forEach(({ source, target: other, weight }) => {
@@ -43,7 +43,7 @@ const apply_negative_edges = (graph, negatives, distance_factor) => {
         if (d >= target) return;
 
         if (d === 0) {
-            const angle = Math.random() * Math.PI * 2;
+            const angle = rng() * Math.PI * 2;
             dx = Math.cos(angle);
             dy = Math.sin(angle);
             d = 1;
@@ -66,7 +66,7 @@ const apply_negative_edges = (graph, negatives, distance_factor) => {
 
 // ForceAtlas2 ne gère pas les poids négatifs : les liens positifs attirent via
 // ForceAtlas2, les liens négatifs sont appliqués entre chaque lot d'itérations
-module.exports = (graph, { iterations = 2000, negative_distance = 4 } = {}) => {
+module.exports = (graph, { iterations = 2000, negative_distance = 4, rng = Math.random } = {}) => {
     const layout_graph = new UndirectedGraph();
     const negatives = [];
 
@@ -79,7 +79,7 @@ module.exports = (graph, { iterations = 2000, negative_distance = 4 } = {}) => {
         }
     });
 
-    random.assign(layout_graph, { scale: 100, center: 0 });
+    random.assign(layout_graph, { scale: 100, center: 0, rng });
 
     const settings = {
         ...forceAtlas2.inferSettings(layout_graph),
@@ -95,7 +95,7 @@ module.exports = (graph, { iterations = 2000, negative_distance = 4 } = {}) => {
         });
 
         if (negatives.length) {
-            apply_negative_edges(layout_graph, negatives, negative_distance);
+            apply_negative_edges(layout_graph, negatives, negative_distance, rng);
         }
     }
 

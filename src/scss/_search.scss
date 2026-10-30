@@ -5,11 +5,9 @@ input[type="search"] {
 }
 
 .search-results {
-    display: none;
-
     position: absolute;
     right: 0;
-    top: 57px;
+    top: var(--header-height);
 
     background-color: #ffffffee;
 
@@ -18,12 +16,12 @@ input[type="search"] {
     z-index: 100;
     width: 340px;
 
-    &.active {
-        display: inherit;
-    }
-
     li {
         list-style: none;
         padding: 10px 0;
+    }
+
+    [aria-selected="true"] {
+        text-decoration: none;
     }
 }

@@ -1,8 +1,5 @@
-
-@import "reset";
-@import "variables";
-@import "base";
-
-@import "layout";
-@import "tags";
-@import "search";
+@use "reset";
+@use "base";
+@use "layout";
+@use "tags";
+@use "search";

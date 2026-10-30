@@ -44,7 +44,8 @@ module.exports = class Generator {
     }
 
     generate() {
-        seedrandom(this.config.seed, { global: true });
+        // Même graine => même disposition à chaque build
+        this.rng = seedrandom(this.config.seed);
 
         this.load_persons();
         this.build_graph();
@@ -160,6 +161,7 @@ module.exports = class Generator {
         compute_layout(graph, {
             iterations: options.layout_iterations,
             negative_distance: options.negative_distance,
+            rng: this.rng,
         });
 
         // Centralité et communautés calculées sur les seuls liens positifs
@@ -171,7 +173,7 @@ module.exports = class Generator {
 
         const ranks = positive.size ? pagerank(positive, { getEdgeWeight: "weight" }) : {};
         const communities = positive.size
-            ? louvain(positive, { getEdgeWeight: "weight", rng: Math.random })
+            ? louvain(positive, { getEdgeWeight: "weight", rng: this.rng })
             : {};
 
         const values = Object.values(ranks);
@@ -233,6 +235,14 @@ module.exports = class Generator {
         return [...groups.values()];
     }
 
+    // "Martin Paul — Parent : Martin Jean, Martin Hélène · Enfant : Martin Lucas"
+    describe(person) {
+        const relations = this.grouped_relations(person)
+            .map(({ label, persons }) => `${label} : ${persons.map((p) => p.name).join(", ")}`)
+            .join(" · ");
+        return relations ? `${person.name} — ${relations}` : person.name;
+    }
+
     // [[Nom Prénom]] dans le texte devient un lien vers la fiche
     render_markdown(content) {
         const html = this.markdown.render(content);
@@ -243,10 +253,19 @@ module.exports = class Generator {
         });
     }
 
+    // Seule la partie de la config utile au navigateur est injectée dans les pages
+    front_config() {
+        const { colors, edge_colors, negative_edge_color, current_node } = this.config;
+        return { colors, edge_colors, negative_edge_color, current_node_color: current_node.color };
+    }
+
     render(file, data) {
         const html = this.template.render({
             config: this.config,
             timestamp: this.timestamp,
+            front_config: this.front_config(),
+            url: file === "index.html" ? "" : file,
+            description: this.config.labels.description,
             ...data,
         });
         fs.writeFileSync(path.join(this.dist, file), html);
@@ -264,7 +283,10 @@ module.exports = class Generator {
             graph.updateNodeAttribute(node, "x", Math.round);
             graph.updateNodeAttribute(node, "y", Math.round);
         });
-        fs.writeFileSync(path.join(this.dist, "graph.json"), JSON.stringify(graph.export()));
+        // Clés de liens stables d'un build à l'autre (graphology génère des clés aléatoires)
+        const data = graph.export();
+        data.edges.forEach((edge, index) => (edge.key = String(index)));
+        fs.writeFileSync(path.join(this.dist, "graph.json"), JSON.stringify(data));
 
         const search = [];
 
@@ -274,6 +296,7 @@ module.exports = class Generator {
             this.render(page_url(person.slug), {
                 id: person.slug,
                 title: person.name,
+                description: this.describe(person),
                 has_card: person.has_card,
                 content: this.render_markdown(person.body),
                 relations: this.grouped_relations(person),

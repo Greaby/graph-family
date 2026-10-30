@@ -14,13 +14,12 @@ const build_assets = async () => {
         entryPoints: ["src/javascript/app.js"],
         bundle: true,
         minify: true,
+        format: "esm",
+        target: ["es2022"],
         outfile: `${dist}/app.js`,
     });
 
-    const { css } = sass.compile("src/scss/app.scss", {
-        style: "compressed",
-        silenceDeprecations: ["import", "global-builtin"],
-    });
+    const { css } = sass.compile("src/scss/app.scss", { style: "compressed" });
     fs.writeFileSync(`${dist}/app.css`, css);
 
     fs.cpSync("src/static", `${dist}/static`, { recursive: true });

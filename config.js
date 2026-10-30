@@ -19,6 +19,8 @@ module.exports = {
         missing_card: "Cette personne n'a pas encore de fiche.",
         show_negative: "Afficher les relations négatives",
         negative: "négatif",
+        graph: "Graphe des relations",
+        description: "Graphe interactif des relations familiales et amicales",
     },
 
     // Types de relations.
