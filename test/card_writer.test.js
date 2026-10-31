@@ -95,3 +95,13 @@ test("retire une relation écrite avec un alias", () => {
     const result = remove_relation("# A\n\nfils : B, C\nfille : D\n", { tag: "enfant", name: "B" }, types);
     assert.strictEqual(result, "# A\n\nfils : C\nfille : D\n");
 });
+
+test("change la note d'une relation sans toucher à son tag ni à sa place", () => {
+    const { set_note } = add_relation;
+    const content = "# A\n\nfils : B, C (ancienne)\nami : D\n";
+    assert.strictEqual(
+        set_note(content, { tag: "enfant", name: "C", note: "nouvelle" }, types),
+        "# A\n\nfils : B, C (nouvelle)\nami : D\n"
+    );
+    assert.strictEqual(set_note(content, { tag: "enfant", name: "C" }, types), "# A\n\nfils : B, C\nami : D\n");
+});

@@ -118,6 +118,21 @@ const remove_relation = (content, { tag, negated = false, name }, types = null) 
         )
     );
 
+// Change the note of a relation in place, keeping its tag and position
+// (under any alias when `types` is given)
+const set_note = (content, { tag, negated = false, name, note = null }, types = null) => {
+    note = note?.trim() || null;
+    if (note && /[\n\r()]/.test(note)) throw new Error(`Note invalide : « ${note} »`);
+
+    return join_card(
+        map_relations(content, (relation, person) =>
+            same_type(relation, tag, negated, types) && get_slug(person.name) === get_slug(name)
+                ? { ...person, note }
+                : person
+        )
+    );
+};
+
 const replace_wiki_links = (lines, name, replacement) =>
     lines.map((line) =>
         line.replace(/\[\[([^\]]+)\]\]/g, (match, linked) =>
@@ -147,5 +162,6 @@ const rename_person = (content, old_name, new_name) => {
 module.exports = add_relation;
 module.exports.add_relation = add_relation;
 module.exports.remove_relation = remove_relation;
+module.exports.set_note = set_note;
 module.exports.remove_person = remove_person;
 module.exports.rename_person = rename_person;

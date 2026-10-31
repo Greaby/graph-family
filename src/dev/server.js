@@ -7,7 +7,7 @@ const http = require("http");
 const build = require("../../build");
 const get_slug = require("../generator/slug");
 const parse_person = require("../generator/parse_person");
-const { add_relation, remove_relation, remove_person, rename_person } = require("./card_writer");
+const { add_relation, remove_relation, set_note, remove_person, rename_person } = require("./card_writer");
 
 const ROOT = path.join(__dirname, "../..");
 const HOST = process.env.HOST || "127.0.0.1";
@@ -178,7 +178,8 @@ const card_relations = (content, own_slug) => {
 };
 
 // Keep the other cards in sync after a card was edited by hand: relations
-// added to the card are written on the other side, removed ones are removed
+// added to the card are written on the other side, removed ones are removed,
+// changed notes are updated
 const sync_other_cards = (name, old_content, new_content) => {
     const own_slug = get_slug(name);
     const before = card_relations(old_content, own_slug);
@@ -195,7 +196,17 @@ const sync_other_cards = (name, old_content, new_content) => {
     });
 
     after.forEach((relation, key) => {
-        if (before.has(key)) return;
+        // Same relation (maybe spelled with another alias): the other card keeps
+        // its own tag, only a changed note is carried over
+        if (before.has(key)) {
+            if ((before.get(key).note ?? null) === (relation.note ?? null)) return;
+            const result = edit_card(relation.name, (content) =>
+                content ? set_note(content, inverse_of(relation, name), generator.types) : content
+            );
+            if (result.changed) files.add(result.file);
+            return;
+        }
+
         const result = edit_card(relation.name, (content, title) =>
             add_relation(content, inverse_of(relation, name), title, generator.types)
         );
@@ -229,13 +240,34 @@ const save_relation = async (request, response) => {
     // Validate both sides before removing the old relation
     add_relation("", relation, from_name);
     add_relation("", inverse, to_name);
-    if (replace) delete_relation_sources(find_relation(replace));
 
-    // The relation is written in both cards
-    const results = [
-        edit_card(from_name, (content, title) => add_relation(content, relation, title, generator.types)),
-        edit_card(to_name, (content, title) => add_relation(content, inverse, title, generator.types)),
-    ];
+    const types = generator.types;
+    const key = types.canonical_key(get_slug(from_name), get_slug(to_name), types.resolve(relation.tag).type, relation.negated);
+    const old = replace ? find_relation(replace) : null;
+    let results;
+
+    if (old && key === replace) {
+        // Same relation, only the tag spelling or the note changed ("fratrie" =>
+        // "frère"): rewrite the edited card only. The other card keeps its own
+        // tag ("sœur"), only its note is updated in place.
+        const from_file = generator.persons.get(get_slug(from_name))?.file;
+        const other_source = old.sources.find((source) => source.file !== from_file);
+        delete_relation_sources({ sources: old.sources.filter((source) => source.file === from_file) });
+
+        results = [
+            edit_card(from_name, (content, title) => add_relation(content, relation, title, types)),
+            other_source
+                ? edit_card(to_name, (content) => set_note(content, inverse, types))
+                : edit_card(to_name, (content, title) => add_relation(content, inverse, title, types)),
+        ];
+    } else {
+        // New relation, or its meaning changed: (re)write it in both cards
+        if (old) delete_relation_sources(old);
+        results = [
+            edit_card(from_name, (content, title) => add_relation(content, relation, title, types)),
+            edit_card(to_name, (content, title) => add_relation(content, inverse, title, types)),
+        ];
+    }
 
     await rebuild({ assets: false });
     send_json(response, 200, {
