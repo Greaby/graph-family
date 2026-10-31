@@ -87,3 +87,5 @@ module.exports = (content, fallback_name = "") => {
 
     return { name: name.trim(), relations, body };
 };
+
+module.exports.parse_relation = parse_relation;

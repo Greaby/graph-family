@@ -8,10 +8,21 @@ Nécessite Node.js 18+.
 
 ```bash
 npm install
+npm run dev     # mode dev avec éditeur : http://localhost:8080
 npm run build   # génère le site dans dist/
-npm run serve   # le sert en local sur http://localhost:8080
 npm test
 ```
+
+## Mode dev
+
+`npm run dev` lance un serveur local qui :
+
+- régénère le site dès qu'une fiche, un fichier de `src/` ou `config.js` change, et met à jour la page ouverte sans la recharger ;
+- affiche sur chaque page un formulaire **Ajouter une relation**, avec auto-complétion des personnes et des types de relation. La relation est écrite dans la fiche markdown de la personne (créée si besoin), et le graphe s'anime vers sa nouvelle disposition.
+
+Saisir `-marié` dans le champ relation crée une relation négative. Si la fiche a déjà une ligne pour ce tag, le nom y est ajouté (`parent : A, B`).
+
+Le serveur écoute uniquement sur `127.0.0.1` (modifiable avec `HOST` et `PORT`). L'éditeur n'existe pas dans le site généré par `npm run build`.
 
 ## Créer une fiche
 

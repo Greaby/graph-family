@@ -5,7 +5,7 @@
     "private": true,
     "scripts": {
         "build": "node build.js",
-        "serve": "npx --yes http-server dist -c-1",
+        "dev": "node src/dev/server.js",
         "test": "node --test"
     },
     "author": "Greaby",

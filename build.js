@@ -2,37 +2,59 @@ const fs = require("fs");
 const esbuild = require("esbuild");
 const sass = require("sass");
 
-const config = require("./config");
 const Generator = require("./src/generator/generator");
 
-const dist = config.folders.dist;
+// Relit config.js à chaque build (utile en mode dev)
+const load_config = () => {
+    delete require.cache[require.resolve("./config")];
+    return require("./config");
+};
 
-const build_assets = async () => {
+const build_assets = async (dist, dev) => {
     fs.mkdirSync(`${dist}/static`, { recursive: true });
 
     await esbuild.build({
         entryPoints: ["src/javascript/app.js"],
         bundle: true,
-        minify: true,
+        minify: !dev,
+        sourcemap: dev ? "inline" : false,
         format: "esm",
+        splitting: true,
         target: ["es2022"],
-        outfile: `${dist}/app.js`,
+        outdir: dist,
+        entryNames: "[name]",
+        chunkNames: "chunks/[name]-[hash]",
+        logLevel: "warning",
     });
 
-    const { css } = sass.compile("src/scss/app.scss", { style: "compressed" });
+    const { css } = sass.compile("src/scss/app.scss", { style: dev ? "expanded" : "compressed" });
     fs.writeFileSync(`${dist}/app.css`, css);
 
     fs.cpSync("src/static", `${dist}/static`, { recursive: true });
 };
 
-const build = async () => {
+// assets: false ne régénère que les pages (quand seules les fiches ont changé)
+const build = async ({ dev = false, assets = true } = {}) => {
     const start = Date.now();
-    new Generator(config).generate();
-    await build_assets();
-    console.log(`✔ Site généré dans ${dist}/ en ${Date.now() - start} ms`);
+    const config = load_config();
+
+    const generator = new Generator({ ...config, dev });
+    generator.generate();
+
+    if (assets) {
+        fs.rmSync(`${config.folders.dist}/chunks`, { recursive: true, force: true });
+        await build_assets(config.folders.dist, dev);
+    }
+
+    console.log(`✔ Site généré dans ${config.folders.dist}/ en ${Date.now() - start} ms`);
+    return generator;
 };
 
-build().catch((error) => {
-    console.error(error);
-    process.exit(1);
-});
+module.exports = build;
+
+if (require.main === module) {
+    build().catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
+}

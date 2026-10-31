@@ -1,5 +1,6 @@
 import Graph from "graphology";
 import Sigma from "sigma";
+import { animateNodes } from "sigma/utils";
 import config from "./config.js";
 
 const FADED_COLOR = "#f0f0f0";
@@ -13,15 +14,16 @@ const edge_label = (graph, edge, node) =>
         .map(([from, label, inverse, negated]) => `${negated ? "-" : ""}${from === node ? label : inverse}`)
         .join(", ");
 
-const load_graph = async (url) => {
-    const response = await fetch(url);
+const fetch_graph_data = async () => {
+    const response = await fetch("./graph.json", { cache: "no-cache" });
     if (!response.ok) {
-        throw new Error(`${url} : ${response.status}`);
+        throw new Error(`graph.json : ${response.status}`);
     }
+    return response.json();
+};
 
-    const graph = new Graph();
-    graph.import(await response.json());
-
+// Couleurs et tailles d'affichage calculées à partir des données exportées
+const decorate = (graph) => {
     graph.updateEachNodeAttributes((_node, attributes) => ({
         ...attributes,
         color: pick(config.colors, attributes.c),
@@ -35,13 +37,15 @@ const load_graph = async (url) => {
             color: negative ? config.negative_edge_color : pick(config.edge_colors, source_attributes.c),
         });
     });
-
-    return graph;
 };
 
 export default async (container, negative_toggle) => {
-    const graph = await load_graph("./graph.json");
-    const current_node = graph.hasNode(container.dataset.node) ? container.dataset.node : undefined;
+    const graph = new Graph();
+    graph.import(await fetch_graph_data());
+    decorate(graph);
+
+    const find_current_node = () => (graph.hasNode(container.dataset.node) ? container.dataset.node : undefined);
+    let current_node = find_current_node();
 
     let focus = current_node;
     let focus_neighbors = new Set(focus ? graph.neighbors(focus) : []);
@@ -115,5 +119,28 @@ export default async (container, negative_toggle) => {
         renderer.getCamera().setState({ x, y, ratio: 1 });
     }
 
-    return renderer;
+    // Recharge graph.json en place : les personnes déjà présentes glissent
+    // de leur ancienne position vers la nouvelle
+    const update = async () => {
+        const data = await fetch_graph_data();
+        const previous = Object.fromEntries(graph.mapNodes((node, { x, y }) => [node, { x, y }]));
+
+        graph.clear();
+        graph.import(data);
+        decorate(graph);
+        current_node = find_current_node();
+
+        const targets = {};
+        graph.forEachNode((node, { x, y }) => {
+            targets[node] = { x, y };
+            if (previous[node]) {
+                graph.mergeNodeAttributes(node, previous[node]);
+            }
+        });
+
+        set_focus(focus && graph.hasNode(focus) ? focus : current_node);
+        animateNodes(graph, targets, { duration: 600 });
+    };
+
+    return { renderer, update };
 };

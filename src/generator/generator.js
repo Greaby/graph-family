@@ -18,7 +18,7 @@ const { range } = require("./interpolation");
 const get_slug = (name) => slugify(name, { lower: true, strict: true, locale: "fr" });
 const page_url = (slug) => `personne-${slug}.html`;
 
-module.exports = class Generator {
+class Generator {
     constructor(config, root = process.cwd()) {
         this.config = config;
         this.root = root;
@@ -29,6 +29,7 @@ module.exports = class Generator {
         this.timestamp = Date.now();
 
         this.markdown = new MarkdownIt({ linkify: true, html: true });
+        Twig.cache(false);
         this.template = Twig.twig({
             path: path.join(__dirname, "../template.twig"),
             async: false,
@@ -86,6 +87,7 @@ module.exports = class Generator {
             }
             person.name = card.name;
             person.has_card = true;
+            person.file = path.join(folder, file);
             person.body = [person.body, card.body].filter((x) => x).join("\n\n");
 
             card.relations.forEach(({ tag, negated, persons }) => {
@@ -255,8 +257,18 @@ module.exports = class Generator {
 
     // Seule la partie de la config utile au navigateur est injectée dans les pages
     front_config() {
-        const { colors, edge_colors, negative_edge_color, current_node } = this.config;
-        return { colors, edge_colors, negative_edge_color, current_node_color: current_node.color };
+        const { colors, edge_colors, negative_edge_color, current_node, dev } = this.config;
+        const front = { colors, edge_colors, negative_edge_color, current_node_color: current_node.color };
+
+        if (dev) {
+            front.dev = true;
+            front.relation_tags = Object.entries(this.types.aliases).map(([tag, type]) => ({
+                value: tag,
+                label: this.types.label(type),
+            }));
+        }
+
+        return front;
     }
 
     render(file, data) {
@@ -321,4 +333,7 @@ module.exports = class Generator {
 
         this.log(`✔ ${this.persons.size} personnes, ${this.relations.size} relations`);
     }
-};
+}
+
+module.exports = Generator;
+module.exports.get_slug = get_slug;
