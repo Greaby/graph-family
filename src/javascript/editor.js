@@ -34,9 +34,12 @@ export default (current_name = "") => {
         ]);
 
     const status = element("p", { class: "editor-status", role: "status" });
+    const heading = element("h3", { id: "editor-title" }, ["Ajouter une relation"]);
+    const submit = element("button", { type: "submit" }, ["Ajouter"]);
+    const cancel = element("button", { type: "button", hidden: true }, ["Annuler"]);
 
     const form = element("form", { class: "editor", "aria-labelledby": "editor-title" }, [
-        element("h3", { id: "editor-title" }, ["Ajouter une relation"]),
+        heading,
         field("from", "Personne", { list: "editor-persons", required: true, value: current_name }),
         field("tag", "Relation", {
             list: "editor-tags",
@@ -45,7 +48,7 @@ export default (current_name = "") => {
         }),
         field("to", "Avec", { list: "editor-persons", required: true, placeholder: "Nom Prénom" }),
         field("note", "Note", { placeholder: "facultatif" }),
-        element("button", { type: "submit" }, ["Ajouter"]),
+        element("div", { class: "editor-actions" }, [submit, cancel]),
         status,
         persons_list,
         tags_list,
@@ -61,10 +64,41 @@ export default (current_name = "") => {
         status.classList.toggle("error", error);
     };
 
+    // Mode modification : la relation `key` sera remplacée à l'enregistrement
+    let replace = null;
+
+    const reset = () => {
+        replace = null;
+        heading.textContent = "Ajouter une relation";
+        submit.textContent = "Ajouter";
+        cancel.hidden = true;
+        form.elements.to.value = "";
+        form.elements.note.value = "";
+    };
+
+    const edit = ({ key, tag, to, note }) => {
+        replace = key;
+        heading.textContent = "Modifier la relation";
+        submit.textContent = "Enregistrer";
+        cancel.hidden = false;
+        form.elements.from.value = current_name || form.elements.from.value;
+        form.elements.tag.value = tag;
+        form.elements.to.value = to;
+        form.elements.note.value = note ?? "";
+        set_status("");
+        form.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        form.elements.tag.focus();
+    };
+
+    cancel.addEventListener("click", () => {
+        reset();
+        set_status("");
+    });
+
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const data = Object.fromEntries(new FormData(form));
-        const button = form.querySelector("button");
+        const data = { ...Object.fromEntries(new FormData(form)), replace };
+        const button = submit;
         button.disabled = true;
         set_status("Enregistrement…");
 
@@ -77,9 +111,9 @@ export default (current_name = "") => {
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
 
-            set_status(result.changed ? `✔ Ajouté dans ${result.file}` : "Cette relation existe déjà");
-            form.elements.to.value = "";
-            form.elements.note.value = "";
+            const verb = replace ? "Modifié" : "Ajouté";
+            set_status(result.changed ? `✔ ${verb} dans ${result.file}` : "Cette relation existe déjà");
+            reset();
             form.elements.to.focus();
         } catch (error) {
             set_status(error.message, true);
@@ -90,5 +124,5 @@ export default (current_name = "") => {
 
     refresh_persons();
 
-    return { form, refresh_persons, set_status };
+    return { form, refresh_persons, set_status, edit };
 };

@@ -2,7 +2,6 @@ const fs = require("fs");
 const path = require("path");
 
 const seedrandom = require("seedrandom");
-const slugify = require("slugify");
 const MarkdownIt = require("markdown-it");
 const Twig = require("twig");
 const { UndirectedGraph } = require("graphology");
@@ -15,7 +14,7 @@ const RelationTypes = require("./relations");
 const compute_layout = require("./layout");
 const { range } = require("./interpolation");
 
-const get_slug = (name) => slugify(name, { lower: true, strict: true, locale: "fr" });
+const get_slug = require("./slug");
 const page_url = (slug) => `personne-${slug}.html`;
 
 class Generator {
@@ -100,7 +99,12 @@ class Generator {
                         return;
                     }
 
-                    this.add_relation(person.slug, other.slug, relation, note);
+                    this.add_relation(person.slug, other.slug, relation, note, {
+                        file: person.file,
+                        tag,
+                        negated,
+                        name,
+                    });
                 });
             });
         });
@@ -112,15 +116,18 @@ class Generator {
         });
     }
 
-    add_relation(from, to, { type, negated, weight }, note) {
+    // `source` : où la relation est écrite (une relation déclarée dans les deux
+    // fiches a deux sources), pour pouvoir la modifier depuis l'éditeur
+    add_relation(from, to, { type, negated, weight }, note, source) {
         const key = this.types.canonical_key(from, to, type, negated);
         if (this.relations.has(key)) {
             const existing = this.relations.get(key);
             existing.note = existing.note || note;
+            existing.sources.push(source);
             return;
         }
 
-        this.relations.set(key, { from, to, type, negated, weight, note });
+        this.relations.set(key, { key, from, to, type, negated, weight, note, sources: [source] });
     }
 
     build_graph() {
@@ -134,7 +141,7 @@ class Generator {
         });
 
         this.relations.forEach((relation) => {
-            const { from, to, type, negated, weight, note } = relation;
+            const { key, from, to, type, negated, weight, note } = relation;
             const label = this.types.label(type);
             const inverse_label = this.types.label(this.types.inverse(type));
 
@@ -144,8 +151,9 @@ class Generator {
                 rel: [...(attributes.rel || []), [from, label, inverse_label, negated ? 1 : 0]],
             }));
 
-            this.persons.get(from).relations.push({ type, label, negated, weight, note, other: to });
+            this.persons.get(from).relations.push({ key, type, label, negated, weight, note, other: to });
             this.persons.get(to).relations.push({
+                key,
                 type: this.types.inverse(type),
                 label: inverse_label,
                 negated,
@@ -226,12 +234,16 @@ class Generator {
 
         [...person.relations]
             .sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))
-            .forEach(({ label, negated, weight, note, other }) => {
-                const key = `${negated ? "-" : ""}${label}`;
-                if (!groups.has(key)) {
-                    groups.set(key, { label, negated, negative: weight < 0, persons: [] });
+            .forEach(({ key, type, label, negated, weight, note, other }) => {
+                const group = `${negated ? "-" : ""}${label}`;
+                if (!groups.has(group)) {
+                    groups.set(group, { label, negated, negative: weight < 0, persons: [] });
                 }
-                groups.get(key).persons.push({ ...this.link(other), note });
+                groups.get(group).persons.push({
+                    ...this.link(other),
+                    note,
+                    relation: { key, tag: `${negated ? "-" : ""}${type}` },
+                });
             });
 
         return [...groups.values()];

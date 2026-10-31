@@ -22,6 +22,12 @@ npm test
 
 Saisir `-marié` dans le champ relation crée une relation négative. Si la fiche a déjà une ligne pour ce tag, le nom y est ajouté (`parent : A, B`).
 
+Des petites icônes permettent aussi de :
+
+- **modifier ou supprimer une relation** (à côté de chaque personne listée). Une relation est retirée de toutes les fiches où elle est écrite, y compris celle de l'autre personne ;
+- **modifier la fiche complète** (à côté du titre) : le markdown s'ouvre dans une fenêtre d'édition. Changer le titre renomme la personne partout : fichier, relations et liens `[[Nom]]` des autres fiches. Pour une personne citée sans fiche, la même icône crée sa fiche ;
+- **supprimer la fiche** : le fichier est supprimé, ainsi que les relations vers cette personne dans les autres fiches.
+
 Le serveur écoute uniquement sur `127.0.0.1` (modifiable avec `HOST` et `PORT`). L'éditeur n'existe pas dans le site généré par `npm run build`.
 
 ## Créer une fiche

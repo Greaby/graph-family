@@ -17,6 +17,13 @@
         <script type="application/json" id="graph-config">{{ front_config | json_encode | raw }}</script>
     </head>
     <body>
+        {% if config.dev %}
+        <svg hidden>
+            <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4" /></symbol>
+            <symbol id="icon-delete" viewBox="0 0 24 24"><path d="M4 7h16 M10 11v6 M14 11v6 M6 7l1 13h10l1-13 M9 7V4h6v3" /></symbol>
+            <symbol id="icon-add" viewBox="0 0 24 24"><path d="M12 5v14 M5 12h14" /></symbol>
+        </svg>
+        {% endif %}
         <header class="site-header">
             <a href="index.html" class="site-title">{{ config.labels.project_title }}</a>
 
@@ -44,7 +51,15 @@
         <main class="row">
             <article class="column-1">
                 {% if title %}
-                <h1>{{ title }}</h1>
+                <h1>{{ title }}{% if config.dev %}
+                    <span class="dev-actions">
+                        <button type="button" data-action="edit-card" data-slug="{{ id }}" title="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}" aria-label="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}">
+                            <svg aria-hidden="true"><use href="#icon-{{ has_card ? 'edit' : 'add' }}" /></svg>
+                        </button>
+                        <button type="button" data-action="delete-card" data-slug="{{ id }}" data-name="{{ title }}" title="Supprimer la fiche" aria-label="Supprimer la fiche">
+                            <svg aria-hidden="true"><use href="#icon-delete" /></svg>
+                        </button>
+                    </span>{% endif %}</h1>
                 {% if not has_card %}
                 <p class="missing-card">{{ config.labels.missing_card }}</p>
                 {% endif %}
@@ -63,6 +78,14 @@
                             {% for person in relation.persons %}
                             <a href="{{ person.url }}" class="tag{{ person.has_card ? '' : ' no-card' }}">{{ person.name }}</a>
                             {% if person.note %}<span class="note">({{ person.note }})</span>{% endif %}
+                            {% if config.dev %}<span class="dev-actions">
+                                <button type="button" data-action="edit-relation" data-key="{{ person.relation.key }}" data-tag="{{ person.relation.tag }}" data-to="{{ person.name }}" data-note="{{ person.note }}" title="Modifier la relation" aria-label="Modifier la relation avec {{ person.name }}">
+                                    <svg aria-hidden="true"><use href="#icon-edit" /></svg>
+                                </button>
+                                <button type="button" data-action="delete-relation" data-key="{{ person.relation.key }}" data-label="{{ relation.label }} : {{ person.name }}" title="Supprimer la relation" aria-label="Supprimer la relation avec {{ person.name }}">
+                                    <svg aria-hidden="true"><use href="#icon-delete" /></svg>
+                                </button>
+                            </span>{% endif %}
                             {% endfor %}
                         </dd>
                         {% endfor %}

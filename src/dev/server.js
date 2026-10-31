@@ -5,8 +5,9 @@ const path = require("path");
 const http = require("http");
 
 const build = require("../../build");
-const { get_slug } = require("../generator/generator");
-const add_relation = require("./card_writer");
+const get_slug = require("../generator/slug");
+const parse_person = require("../generator/parse_person");
+const { add_relation, remove_relation, remove_person, rename_person } = require("./card_writer");
 
 const ROOT = path.join(__dirname, "../..");
 const HOST = process.env.HOST || "127.0.0.1";
@@ -105,10 +106,47 @@ const send_json = (response, status, data) => {
     response.end(JSON.stringify(data));
 };
 
-// POST /__dev/relations { from, tag, to, note } : écrit la relation dans la fiche de `from`
-const create_relation = async (request, response) => {
-    const { from = "", tag = "", to = "", note = "" } = await read_json(request);
-    const persons_folder = path.join(ROOT, generator.config.folders.persons);
+const write_file = (file, content) => {
+    written_by_api.set(file, Date.now());
+    fs.writeFileSync(file, content);
+    console.log(`✎ ${path.relative(ROOT, file)}`);
+};
+
+const persons_folder = () => path.join(ROOT, generator.config.folders.persons);
+const card_files = () => [...generator.persons.values()].filter((p) => p.file).map((p) => p.file);
+const page_url = (slug) => `personne-${slug}.html`;
+
+// Applique `transform` à toutes les fiches, n'écrit que celles qui changent
+const update_all_cards = (transform, except = null) => {
+    card_files()
+        .filter((file) => file !== except && fs.existsSync(file))
+        .forEach((file) => {
+            const content = fs.readFileSync(file, "utf-8");
+            const updated = transform(content);
+            if (updated !== content) write_file(file, updated);
+        });
+};
+
+const find_relation = (key) => {
+    const relation = generator.relations.get(key);
+    if (!relation) throw new Error("Relation introuvable, la page n'est peut-être pas à jour");
+    return relation;
+};
+
+// Retire une relation de toutes les fiches où elle est écrite
+const delete_relation_sources = (relation) => {
+    relation.sources.forEach(({ file, tag, negated, name }) => {
+        const content = fs.readFileSync(file, "utf-8");
+        const updated = remove_relation(content, { tag, negated, name });
+        if (updated !== content) write_file(file, updated);
+    });
+};
+
+// POST /__dev/relations { from, tag, to, note, replace? }
+// Écrit la relation dans la fiche de `from`. `replace` : clé d'une relation à
+// remplacer (modification).
+const save_relation = async (request, response) => {
+    const { from = "", tag = "", to = "", note = "", replace = null } = await read_json(request);
 
     // Réutilise l'orthographe exacte d'une personne existante
     const canonical = (name) => generator.persons.get(get_slug(name))?.name ?? name.trim();
@@ -123,27 +161,98 @@ const create_relation = async (request, response) => {
     }
 
     const person = generator.persons.get(get_slug(from_name));
-    const file = person?.file ?? path.join(persons_folder, `${get_slug(from_name)}.md`);
+    const file = person?.file ?? path.join(persons_folder(), `${get_slug(from_name)}.md`);
+    const relation = { tag: tag.trim().replace(/^-/, ""), negated: tag.trim().startsWith("-"), name: to_name, note };
+
+    // Valide la nouvelle relation avant de supprimer l'ancienne
+    add_relation("", relation, from_name);
+    if (replace) delete_relation_sources(find_relation(replace));
+
     const content = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
+    const updated = add_relation(content, relation, from_name);
+    if (updated !== content) write_file(file, updated);
 
-    const updated = add_relation(
-        content,
-        { tag: tag.trim().replace(/^-/, ""), negated: tag.trim().startsWith("-"), name: to_name, note },
-        from_name
-    );
-
-    if (updated !== content) {
-        written_by_api.set(file, Date.now());
-        fs.writeFileSync(file, updated);
-        console.log(`✎ ${path.relative(ROOT, file)} : ${tag} : ${to_name}`);
-        await rebuild({ assets: false });
-    }
-
+    await rebuild({ assets: false });
     send_json(response, 200, {
         file: path.relative(ROOT, file),
-        url: `personne-${get_slug(from_name)}.html`,
-        changed: updated !== content,
+        changed: Boolean(replace) || updated !== content,
     });
+};
+
+// DELETE /__dev/relations { key }
+const delete_relation = async (request, response) => {
+    const { key } = await read_json(request);
+    delete_relation_sources(find_relation(key));
+    await rebuild({ assets: false });
+    send_json(response, 200, { ok: true });
+};
+
+const find_person = (slug) => {
+    const person = generator.persons.get(slug);
+    if (!person) throw new Error("Personne introuvable");
+    return person;
+};
+
+// GET /__dev/cards/:slug : contenu markdown brut de la fiche
+const read_card = (slug, response) => {
+    const person = find_person(slug);
+    const content = person.file ? fs.readFileSync(person.file, "utf-8") : `# ${person.name}\n\n`;
+    send_json(response, 200, {
+        name: person.name,
+        exists: Boolean(person.file),
+        file: path.relative(ROOT, person.file ?? path.join(persons_folder(), `${slug}.md`)),
+        content,
+    });
+};
+
+// PUT /__dev/cards/:slug { content } : enregistre la fiche. Si le nom change,
+// le fichier est renommé et les autres fiches sont mises à jour.
+const save_card = async (slug, request, response) => {
+    const person = find_person(slug);
+    const { content = "" } = await read_json(request);
+
+    const card = parse_person(content);
+    const new_slug = get_slug(card.name);
+    if (!new_slug) throw new Error("La fiche doit commencer par un titre : # Nom Prénom");
+
+    let file = person.file ?? path.join(persons_folder(), `${slug}.md`);
+
+    if (new_slug !== slug) {
+        if (generator.persons.get(new_slug)?.file) {
+            throw new Error(`« ${card.name} » a déjà une fiche`);
+        }
+
+        update_all_cards((text) => rename_person(text, person.name, card.name), person.file);
+
+        // Fichier nommé d'après l'ancien nom : il suit le nouveau nom
+        if (person.file && path.basename(person.file, ".md") === slug) {
+            const renamed = path.join(path.dirname(person.file), `${new_slug}.md`);
+            written_by_api.set(person.file, Date.now());
+            fs.renameSync(person.file, renamed);
+            file = renamed;
+        } else if (!person.file) {
+            file = path.join(persons_folder(), `${new_slug}.md`);
+        }
+    }
+
+    write_file(file, content.endsWith("\n") ? content : `${content}\n`);
+    await rebuild({ assets: false });
+    send_json(response, 200, { url: page_url(new_slug), file: path.relative(ROOT, file) });
+};
+
+// DELETE /__dev/cards/:slug : supprime la fiche et les relations vers cette personne
+const delete_card = async (slug, response) => {
+    const person = find_person(slug);
+
+    update_all_cards((text) => remove_person(text, person.name), person.file);
+    if (person.file) {
+        written_by_api.set(person.file, Date.now());
+        fs.rmSync(person.file);
+        console.log(`✕ ${path.relative(ROOT, person.file)}`);
+    }
+
+    await rebuild({ assets: false });
+    send_json(response, 200, { url: "index.html" });
 };
 
 const serve_static = (request, response) => {
@@ -178,9 +287,17 @@ const server = http.createServer(async (request, response) => {
             return;
         }
 
-        if (request.url === "/__dev/relations" && request.method === "POST") {
-            await create_relation(request, response);
-            return;
+        if (request.url === "/__dev/relations") {
+            if (request.method === "POST") return await save_relation(request, response);
+            if (request.method === "DELETE") return await delete_relation(request, response);
+        }
+
+        const card_match = request.url.match(/^\/__dev\/cards\/([a-z0-9-]+)$/);
+        if (card_match) {
+            const [, slug] = card_match;
+            if (request.method === "GET") return read_card(slug, response);
+            if (request.method === "PUT") return await save_card(slug, request, response);
+            if (request.method === "DELETE") return await delete_card(slug, response);
         }
 
         serve_static(request, response);

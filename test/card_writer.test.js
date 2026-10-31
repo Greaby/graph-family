@@ -41,3 +41,38 @@ test("refuse les valeurs qui cassent la syntaxe", () => {
     assert.throws(() => add_relation("# A\n", { tag: "a:b", name: "B" }));
     assert.throws(() => add_relation("# A\n", { tag: "ami", name: "B\nparent : C" }));
 });
+
+const { remove_relation, remove_person, rename_person } = add_relation;
+
+test("retire une personne d'une ligne de relation", () => {
+    const result = remove_relation("# A\n\nparent : B, C (adoptif)\nami : D\n\nTexte.\n", {
+        tag: "parent",
+        name: "c",
+    });
+    assert.strictEqual(result, "# A\n\nparent : B\nami : D\n\nTexte.\n");
+});
+
+test("supprime la ligne et le bloc quand ils deviennent vides", () => {
+    assert.strictEqual(remove_relation("# A\n\nami : B\n\nTexte.\n", { tag: "ami", name: "B" }), "# A\n\nTexte.\n");
+    assert.strictEqual(remove_relation("# A\n\nami : B\n", { tag: "ami", name: "B" }), "# A\n");
+});
+
+test("ne retire que la relation du bon signe", () => {
+    const content = "# A\n\nmarié : B\n-marié : B\n";
+    assert.strictEqual(remove_relation(content, { tag: "marié", negated: true, name: "B" }), "# A\n\nmarié : B\n");
+});
+
+test("garde la puce et la négation des lignes modifiées", () => {
+    const content = "# A\n\n- -ami : B, C\n";
+    assert.strictEqual(remove_relation(content, { tag: "ami", negated: true, name: "B" }), "# A\n\n- -ami : C\n");
+});
+
+test("retire toutes les mentions d'une personne", () => {
+    const result = remove_person("# A\n\nparent : B, C\nami : B\n\nVoir [[B]] et [[C]].\n", "B");
+    assert.strictEqual(result, "# A\n\nparent : C\n\nVoir B et [[C]].\n");
+});
+
+test("renomme une personne partout dans une fiche", () => {
+    const result = rename_person("# A\n\nparent : B (note), C\n\nVoir [[b]].\n", "B", "Bob");
+    assert.strictEqual(result, "# A\n\nparent : Bob (note), C\n\nVoir [[Bob]].\n");
+});

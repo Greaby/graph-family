@@ -1,5 +1,6 @@
 // Mode dev : éditeur de relations + mise à jour en direct quand le site est régénéré
 import create_editor from "./editor.js";
+import init_actions from "./dev_actions.js";
 
 const article_selector = "article.column-1";
 
@@ -27,8 +28,10 @@ const refresh_article = async (editor) => {
 export default (graph) => {
     const title = document.querySelector(`${article_selector} h1`);
     const has_person = document.getElementById("graph-container")?.dataset.node;
-    const editor = create_editor(has_person ? title?.textContent.trim() : "");
+    const name = has_person ? title?.firstChild?.textContent.trim() : "";
+    const editor = create_editor(name);
     mount(editor);
+    init_actions(editor);
 
     const events = new EventSource("/__dev/events");
 
