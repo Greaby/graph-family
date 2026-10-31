@@ -1,4 +1,5 @@
 // Dev mode: relation editor + live update when the site is rebuilt
+import config from "./config.js";
 import create_editor from "./editor.js";
 import init_actions from "./dev_actions.js";
 
@@ -27,9 +28,12 @@ const refresh_article = async (editor) => {
 
 export default (graph) => {
     const title = document.querySelector(`${article_selector} h1`);
-    const has_person = document.getElementById("graph-container")?.dataset.node;
-    const name = has_person ? title?.firstChild?.textContent.trim() : "";
-    const editor = create_editor(name);
+    const { node, group } = document.getElementById("graph-container")?.dataset ?? {};
+    const name = title?.firstChild?.textContent.trim() ?? "";
+    // On a tag page the form adds members to the tag
+    const editor = group
+        ? create_editor("", { tag: config.group_keyword, to: name })
+        : create_editor(node ? name : "");
     mount(editor);
     init_actions(editor);
 

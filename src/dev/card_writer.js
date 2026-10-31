@@ -149,6 +149,18 @@ const remove_person = (content, name) => {
     return join_card(card);
 };
 
+// Rename a tag in the "tags : …" lines and [[Name]] links
+const rename_group = (content, keyword, old_name, new_name) => {
+    validate({ tag: "x", name: new_name });
+    const card = map_relations(content, (relation, person) =>
+        same_tag(relation, keyword, false) && get_slug(person.name) === get_slug(old_name)
+            ? { ...person, name: new_name }
+            : person
+    );
+    card.rest = replace_wiki_links(card.rest, old_name, `[[${new_name}]]`);
+    return join_card(card);
+};
+
 // Rename a person in the relations and [[Name]] links
 const rename_person = (content, old_name, new_name) => {
     validate({ tag: "x", name: new_name });
@@ -165,3 +177,4 @@ module.exports.remove_relation = remove_relation;
 module.exports.set_note = set_note;
 module.exports.remove_person = remove_person;
 module.exports.rename_person = rename_person;
+module.exports.rename_group = rename_group;

@@ -6,6 +6,7 @@ fratrie : Nom Prénom
 marié : Nom Prénom (depuis 2010)
 -marié : Nom Prénom
 ami : Nom Prénom
+tags : Nom du groupe (école, club…), Autre groupe
 
 Texte libre en markdown : biographie, anecdotes, photos…
 

@@ -9,6 +9,8 @@ module.exports = {
         dist: "dist",
         data: "data",
         persons: "data/personnes",
+        // Optional description of a tag: data/tags/<slug>.md
+        groups: "data/tags",
     },
 
     labels: {
@@ -18,6 +20,7 @@ module.exports = {
         nearby: "Personnes proches",
         missing_card: "Cette personne n'a pas encore de fiche.",
         show_negative: "Afficher les relations négatives",
+        show_groups: "Afficher les tags",
         negative: "négatif",
         graph: "Graphe des relations",
         description: "Graphe interactif des relations familiales et amicales",
@@ -54,6 +57,18 @@ module.exports = {
         ennemi: { label: "Ennemi·e", aliases: ["ennemie"], weight: -3 },
     },
     default_relation_weight: 1,
+
+    // Tags link people to a shared group (a school, a club, a city…):
+    //   tags : École Jules Ferry (1995-2000), Club de foot
+    // Each tag is a node of the graph linked to all its members, with its own page.
+    groups: {
+        keyword: "tags",
+        label: "Tags",
+        members_label: "Membres",
+        weight: 1,
+        color: "#94a3b8",
+        edge_color: "#e2e8f0",
+    },
 
     graph: {
         node_min_size: 4,

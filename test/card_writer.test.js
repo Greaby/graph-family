@@ -105,3 +105,9 @@ test("change la note d'une relation sans toucher à son tag ni à sa place", () 
     );
     assert.strictEqual(set_note(content, { tag: "enfant", name: "C" }, types), "# A\n\nfils : B, C\nami : D\n");
 });
+
+test("renomme un tag sans toucher à une personne du même nom", () => {
+    const { rename_group } = add_relation;
+    const result = rename_group("# A\n\nami : Lycée\ntags : Lycée (1990), Club\n", "tags", "Lycée", "Lycée Jules Ferry");
+    assert.strictEqual(result, "# A\n\nami : Lycée\ntags : Lycée Jules Ferry (1990), Club\n");
+});

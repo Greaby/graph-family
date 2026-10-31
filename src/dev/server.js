@@ -7,7 +7,8 @@ const http = require("http");
 const build = require("../../build");
 const get_slug = require("../generator/slug");
 const parse_person = require("../generator/parse_person");
-const { add_relation, remove_relation, set_note, remove_person, rename_person } = require("./card_writer");
+const { normalize_tag } = require("../generator/relations");
+const { add_relation, remove_relation, set_note, remove_person, rename_person, rename_group } = require("./card_writer");
 
 const ROOT = path.join(__dirname, "../..");
 const HOST = process.env.HOST || "127.0.0.1";
@@ -163,10 +164,20 @@ const delete_relation_sources = (relation) => {
     });
 };
 
+const group_keyword = () => generator.config.groups.keyword;
+const is_group_tag = (tag) => normalize_tag(tag.replace(/^-/, "")) === normalize_tag(group_keyword());
+
+// Remove a person from a tag ("tags : …" line of their card)
+const remove_membership = ({ person, group }) =>
+    edit_card(person, (content) =>
+        content ? remove_relation(content, { tag: group_keyword(), name: group }) : content
+    );
+
 // Relations listed in a card, keyed by "other person|type|negated"
 const card_relations = (content, own_slug) => {
     const relations = new Map();
     parse_person(content).relations.forEach(({ tag, negated, persons }) => {
+        if (is_group_tag(tag)) return;
         const { type } = generator.types.resolve(tag);
         persons
             .filter(({ name }) => get_slug(name) && get_slug(name) !== own_slug)
@@ -218,13 +229,40 @@ const sync_other_cards = (name, old_content, new_content) => {
 
 // POST /__dev/relations { from, tag, to, note, replace? }
 // Write the relation in the card of `from`, and its inverse in the card of `to`.
-// `replace`: key of a relation to replace (edit).
+// `replace`: key of a relation to replace (edit), or { person, group } for a tag.
+// With the tags keyword, `to` is a tag name, only written in the card of `from`.
 const save_relation = async (request, response) => {
-    const { from = "", tag = "", to = "", note = "", replace = null } = await read_json(request);
+    let { from = "", tag = "", to = "", note = "", replace = null } = await read_json(request);
 
     // Reuse the exact spelling of an existing person
     const canonical = (name) => generator.persons.get(get_slug(name))?.name ?? name.trim();
     const from_name = canonical(from);
+
+    // Tag ("tags : Lycée Jules Ferry"): only written in the person's card
+    if (is_group_tag(tag)) {
+        if (tag.trim().startsWith("-")) throw new Error("Un tag ne peut pas être négatif");
+        const group_name = generator.groups.get(get_slug(to))?.name ?? to.trim();
+        const membership = { tag: group_keyword(), name: group_name, note };
+        add_relation("", membership, from_name);
+
+        if (replace?.group) remove_membership(replace);
+        else if (replace) delete_relation_sources(find_relation(replace));
+
+        const result = edit_card(from_name, (content, title) => add_relation(content, membership, title, generator.types));
+        await rebuild({ assets: false });
+        send_json(response, 200, {
+            files: result.changed ? [result.file] : [],
+            changed: Boolean(replace) || result.changed,
+        });
+        return;
+    }
+
+    // A tag turned into a relation
+    if (replace?.group) {
+        remove_membership(replace);
+        replace = null;
+    }
+
     const to_name = canonical(to);
 
     if (!get_slug(from_name) || !get_slug(to_name)) {
@@ -282,6 +320,74 @@ const delete_relation = async (request, response) => {
     delete_relation_sources(find_relation(key));
     await rebuild({ assets: false });
     send_json(response, 200, { ok: true });
+};
+
+// DELETE /__dev/memberships { person, group }: remove a tag from a person
+const delete_membership = async (request, response) => {
+    remove_membership(await read_json(request));
+    await rebuild({ assets: false });
+    send_json(response, 200, { ok: true });
+};
+
+const find_group = (slug) => {
+    const group = generator.groups.get(slug);
+    if (!group) throw new Error("Tag introuvable");
+    return group;
+};
+const group_file = (slug) => path.join(ROOT, generator.config.folders.groups, `${slug}.md`);
+
+// GET /__dev/tags/:slug: markdown description of a tag
+const read_group = (slug, response) => {
+    const group = find_group(slug);
+    const file = group_file(slug);
+    send_json(response, 200, {
+        name: group.name,
+        exists: fs.existsSync(file),
+        file: path.relative(ROOT, file),
+        content: fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : `# ${group.name}\n\n`,
+    });
+};
+
+// PUT /__dev/tags/:slug { content }: save the description. Changing the title
+// renames the tag in every card.
+const save_group = async (slug, request, response) => {
+    const group = find_group(slug);
+    const { content = "" } = await read_json(request);
+
+    const name = parse_person(content).name;
+    const new_slug = get_slug(name);
+    if (!new_slug) throw new Error("La description doit commencer par un titre : # Nom du tag");
+
+    let file = group_file(slug);
+    if (new_slug !== slug) {
+        if (generator.groups.has(new_slug)) throw new Error(`Le tag « ${name} » existe déjà`);
+        update_all_cards((text) => rename_group(text, group_keyword(), group.name, name));
+        if (fs.existsSync(file)) {
+            written_by_api.set(file, Date.now());
+            fs.rmSync(file);
+        }
+        file = group_file(new_slug);
+    }
+
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    write_file(file, content.endsWith("\n") ? content : `${content}\n`);
+    await rebuild({ assets: false });
+    send_json(response, 200, { url: `tag-${new_slug}.html`, file: path.relative(ROOT, file) });
+};
+
+// DELETE /__dev/tags/:slug: remove the tag from every card, and its description
+const delete_group = async (slug, response) => {
+    const group = find_group(slug);
+    update_all_cards((text) => remove_relation(text, { tag: group_keyword(), name: group.name }));
+
+    const file = group_file(slug);
+    if (fs.existsSync(file)) {
+        written_by_api.set(file, Date.now());
+        fs.rmSync(file);
+    }
+
+    await rebuild({ assets: false });
+    send_json(response, 200, { url: "index.html" });
 };
 
 const find_person = (slug) => {
@@ -391,6 +497,18 @@ const server = http.createServer(async (request, response) => {
         if (request.url === "/__dev/relations") {
             if (request.method === "POST") return await save_relation(request, response);
             if (request.method === "DELETE") return await delete_relation(request, response);
+        }
+
+        if (request.url === "/__dev/memberships" && request.method === "DELETE") {
+            return await delete_membership(request, response);
+        }
+
+        const group_match = request.url.match(/^\/__dev\/tags\/([a-z0-9-]+)$/);
+        if (group_match) {
+            const [, slug] = group_match;
+            if (request.method === "GET") return read_group(slug, response);
+            if (request.method === "PUT") return await save_group(slug, request, response);
+            if (request.method === "DELETE") return await delete_group(slug, response);
         }
 
         const card_match = request.url.match(/^\/__dev\/cards\/([a-z0-9-]+)$/);

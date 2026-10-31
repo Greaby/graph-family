@@ -11,11 +11,15 @@ const { kdTree } = require("kd-tree-javascript");
 
 const parse_person = require("./parse_person");
 const RelationTypes = require("./relations");
+const { normalize_tag } = RelationTypes;
 const compute_layout = require("./layout");
 const { range } = require("./interpolation");
 
 const get_slug = require("./slug");
 const page_url = (slug) => `personne-${slug}.html`;
+const group_url = (slug) => `tag-${slug}.html`;
+// "#" can't appear in a person slug, so tag nodes never collide with people
+const group_key = (slug) => `#${slug}`;
 
 class Generator {
     constructor(config, root = process.cwd()) {
@@ -24,6 +28,7 @@ class Generator {
         this.types = new RelationTypes(config);
         this.persons = new Map();
         this.relations = new Map();
+        this.groups = new Map();
         this.graph = new UndirectedGraph();
         this.timestamp = Date.now();
 
@@ -53,6 +58,18 @@ class Generator {
         this.export();
 
         return this.graph;
+    }
+
+    is_group_tag(tag) {
+        return normalize_tag(tag) === normalize_tag(this.config.groups.keyword);
+    }
+
+    get_group(name) {
+        const slug = get_slug(name);
+        if (!this.groups.has(slug)) {
+            this.groups.set(slug, { slug, key: group_key(slug), name, members: new Map() });
+        }
+        return this.groups.get(slug);
     }
 
     get_person(name) {
@@ -90,6 +107,13 @@ class Generator {
             person.body = [person.body, card.body].filter((x) => x).join("\n\n");
 
             card.relations.forEach(({ tag, negated, persons }) => {
+                if (this.is_group_tag(tag)) {
+                    persons.forEach(({ name, note }) => {
+                        this.get_group(name).members.set(person.slug, note);
+                    });
+                    return;
+                }
+
                 const relation = this.types.resolve(tag, negated);
 
                 persons.forEach(({ name, note }) => {
@@ -137,6 +161,17 @@ class Generator {
             graph.addNode(person.slug, {
                 label: person.name,
                 card: person.has_card,
+                url: page_url(person.slug),
+            });
+            person.groups = [];
+        });
+
+        this.groups.forEach((group) => {
+            graph.addNode(group.key, { label: group.name, kind: "tag", url: group_url(group.slug) });
+
+            group.members.forEach((note, member) => {
+                graph.addEdge(member, group.key, { weight: this.config.groups.weight, tag: 1, note });
+                this.persons.get(member).groups.push({ group, note });
             });
         });
 
@@ -202,7 +237,17 @@ class Generator {
             });
         });
 
-        const points = graph.mapNodes((node, { x, y }) => ({ x, y, id: node }));
+        // Tags are sized by their number of members
+        const max_members = Math.max(1, ...[...this.groups.values()].map((group) => group.members.size));
+        this.groups.forEach((group) => {
+            const size = range(1, max_members, options.node_min_size + 2, options.node_max_size, group.members.size);
+            graph.setNodeAttribute(group.key, "size", Math.round(size));
+        });
+
+        // "Nearby people" only lists people, not tags
+        const points = graph
+            .filterNodes((_node, attributes) => attributes.kind !== "tag")
+            .map((node) => ({ ...graph.getNodeAttributes(node), id: node }));
         this.kd_tree = new kdTree(
             points,
             (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2,
@@ -210,13 +255,13 @@ class Generator {
         );
     }
 
-    nearby(slug) {
-        const { x, y } = this.graph.getNodeAttributes(slug);
+    nearby(node) {
+        const { x, y } = this.graph.getNodeAttributes(node);
         const count = this.config.graph.nearby_count;
 
         return this.kd_tree
             .nearest({ x, y }, count + 1)
-            .filter(([point]) => point.id !== slug)
+            .filter(([point]) => point.id !== node)
             .sort(([, a], [, b]) => a - b)
             .slice(0, count)
             .map(([point]) => this.link(point.id));
@@ -246,7 +291,34 @@ class Generator {
                 });
             });
 
+        const tags = [...person.groups]
+            .sort((a, b) => a.group.name.localeCompare(b.group.name))
+            .map(({ group, note }) => ({
+                slug: group.slug,
+                name: group.name,
+                url: group_url(group.slug),
+                has_card: true,
+                note,
+                membership: { person: person.name, group: group.name },
+            }));
+        if (tags.length) {
+            groups.set("#tags", { label: this.config.groups.label, persons: tags });
+        }
+
         return [...groups.values()];
+    }
+
+    // Members of a tag, listed on its page
+    group_members(group) {
+        const persons = [...group.members]
+            .map(([member, note]) => ({
+                ...this.link(member),
+                note,
+                membership: { person: this.persons.get(member).name, group: group.name },
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        return [{ label: "", persons }];
     }
 
     // "Martin Paul — Parent : Martin Jean, Martin Hélène · Enfant : Martin Lucas"
@@ -257,27 +329,43 @@ class Generator {
         return relations ? `${person.name} — ${relations}` : person.name;
     }
 
-    // [[Last First]] in the text becomes a link to the card
+    // [[Last First]] in the text becomes a link to the card (or to the tag page)
     render_markdown(content) {
         const html = this.markdown.render(content);
         return html.replace(/\[\[([^\]]+)\]\]/g, (match, name) => {
             const slug = get_slug(name);
-            if (!this.persons.has(slug)) return name;
-            return `<a href="${page_url(slug)}">${this.persons.get(slug).name}</a>`;
+            if (this.persons.has(slug)) {
+                return `<a href="${page_url(slug)}">${this.persons.get(slug).name}</a>`;
+            }
+            if (this.groups.has(slug)) {
+                return `<a href="${group_url(slug)}">${this.groups.get(slug).name}</a>`;
+            }
+            return name;
         });
     }
 
     // Only the part of the config the browser needs is injected in the pages
     front_config() {
-        const { colors, edge_colors, negative_edge_color, current_node, dev } = this.config;
-        const front = { colors, edge_colors, negative_edge_color, current_node_color: current_node.color };
+        const { colors, edge_colors, negative_edge_color, current_node, groups, dev } = this.config;
+        const front = {
+            colors,
+            edge_colors,
+            negative_edge_color,
+            current_node_color: current_node.color,
+            group_color: groups.color,
+            group_edge_color: groups.edge_color,
+        };
 
         if (dev) {
             front.dev = true;
-            front.relation_tags = Object.entries(this.types.aliases).map(([tag, type]) => ({
-                value: tag,
-                label: this.types.label(type),
-            }));
+            front.group_keyword = groups.keyword;
+            front.relation_tags = [
+                { value: groups.keyword, label: groups.label },
+                ...Object.entries(this.types.aliases).map(([tag, type]) => ({
+                    value: tag,
+                    label: this.types.label(type),
+                })),
+            ];
         }
 
         return front;
@@ -328,6 +416,27 @@ class Generator {
             });
         });
 
+        this.groups.forEach((group) => {
+            search.push({ title: group.name, url: group_url(group.slug) });
+
+            const description_file = this.resolve(`${this.config.folders.groups}/${group.slug}.md`);
+            const description = fs.existsSync(description_file)
+                ? parse_person(fs.readFileSync(description_file, "utf-8")).body
+                : "";
+
+            this.render(group_url(group.slug), {
+                id: group.key,
+                group: group.slug,
+                title: group.name,
+                description: `${group.name} — ${[...group.members.keys()].map((m) => this.persons.get(m).name).join(", ")}`,
+                has_card: true,
+                content: this.render_markdown(description),
+                relations_title: this.config.groups.members_label,
+                relations: this.group_members(group),
+                nearby: this.nearby(group.key),
+            });
+        });
+
         fs.writeFileSync(
             path.join(this.dist, "search.json"),
             JSON.stringify(search.sort((a, b) => a.title.localeCompare(b.title)))
@@ -343,9 +452,10 @@ class Generator {
             content: this.render_markdown(index_content),
         });
 
-        this.log(`✔ ${this.persons.size} personnes, ${this.relations.size} relations`);
+        this.log(`✔ ${this.persons.size} personnes, ${this.relations.size} relations, ${this.groups.size} tags`);
     }
 }
 
 module.exports = Generator;
 module.exports.get_slug = get_slug;
+module.exports.group_key = group_key;

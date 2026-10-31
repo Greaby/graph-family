@@ -22,7 +22,9 @@ export const load_persons = async () => {
     return response.ok ? response.json() : [];
 };
 
-export default (current_name = "") => {
+// `defaults`: values kept in the form between two additions
+// (on a tag page: the tag keyword and the tag name)
+export default (current_name = "", defaults = {}) => {
     const persons_list = element("datalist", { id: "editor-persons" });
     const tags_list = element("datalist", { id: "editor-tags" });
     fill_datalist(tags_list, config.relation_tags ?? []);
@@ -44,9 +46,15 @@ export default (current_name = "") => {
         field("tag", "Relation", {
             list: "editor-tags",
             required: true,
-            placeholder: "parent, ami, -marié…",
+            placeholder: "parent, ami, -marié, tags…",
+            value: defaults.tag,
         }),
-        field("to", "Avec", { list: "editor-persons", required: true, placeholder: "Nom Prénom" }),
+        field("to", "Avec", {
+            list: "editor-persons",
+            required: true,
+            placeholder: "Nom Prénom ou nom du tag",
+            value: defaults.to,
+        }),
         field("note", "Note", { placeholder: "facultatif" }),
         element("div", { class: "editor-actions" }, [submit, cancel]),
         status,
@@ -72,16 +80,18 @@ export default (current_name = "") => {
         heading.textContent = "Ajouter une relation";
         submit.textContent = "Ajouter";
         cancel.hidden = true;
-        form.elements.to.value = "";
+        form.elements.from.value = current_name || (defaults.to ? "" : form.elements.from.value);
+        form.elements.to.value = defaults.to ?? "";
         form.elements.note.value = "";
     };
 
-    const edit = ({ key, tag, to, note }) => {
-        replace = key;
+    // `replace`: key of the relation, or { person, group } for a tag
+    const edit = ({ replace: replaced, from, tag, to, note }) => {
+        replace = replaced;
         heading.textContent = "Modifier la relation";
         submit.textContent = "Enregistrer";
         cancel.hidden = false;
-        form.elements.from.value = current_name || form.elements.from.value;
+        form.elements.from.value = from || current_name || form.elements.from.value;
         form.elements.tag.value = tag;
         form.elements.to.value = to;
         form.elements.note.value = note ?? "";
@@ -116,7 +126,7 @@ export default (current_name = "") => {
                 result.changed ? `✔ ${verb} dans ${result.files.join(" et ") || "les fiches"}` : "Cette relation existe déjà"
             );
             reset();
-            form.elements.to.focus();
+            (defaults.to ? form.elements.from : form.elements.to).focus();
         } catch (error) {
             set_status(error.message, true);
         } finally {

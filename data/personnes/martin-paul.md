@@ -6,3 +6,4 @@ mère : Martin Hélène
 conjoint : Roux Camille
 enfant : Martin Lucas, Martin Emma
 ami : Faure Thomas
+tags : Lycée Jules Ferry (1990-1993)

@@ -27,10 +27,16 @@
         <header class="site-header">
             <a href="index.html" class="site-title">{{ config.labels.project_title }}</a>
 
-            <label class="toggle">
-                <input type="checkbox" name="show-negative" checked />
-                {{ config.labels.show_negative }}
-            </label>
+            <div class="toggles">
+                <label class="toggle">
+                    <input type="checkbox" name="show-negative" checked />
+                    {{ config.labels.show_negative }}
+                </label>
+                <label class="toggle">
+                    <input type="checkbox" name="show-groups" checked />
+                    {{ config.labels.show_groups }}
+                </label>
+            </div>
 
             <search>
                 <input
@@ -53,12 +59,21 @@
                 {% if title %}
                 <h1>{{ title }}{% if config.dev %}
                     <span class="dev-actions">
-                        <button type="button" data-action="edit-card" data-slug="{{ id }}" title="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}" aria-label="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}">
+                        {% if group %}
+                        <button type="button" data-action="edit-card" data-kind="tags" data-slug="{{ group }}" title="Modifier la description du tag" aria-label="Modifier la description du tag">
+                            <svg aria-hidden="true"><use href="#icon-edit" /></svg>
+                        </button>
+                        <button type="button" data-action="delete-group" data-slug="{{ group }}" data-name="{{ title }}" title="Supprimer le tag" aria-label="Supprimer le tag">
+                            <svg aria-hidden="true"><use href="#icon-delete" /></svg>
+                        </button>
+                        {% else %}
+                        <button type="button" data-action="edit-card" data-kind="cards" data-slug="{{ id }}" title="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}" aria-label="{{ has_card ? 'Modifier la fiche' : 'Créer la fiche' }}">
                             <svg aria-hidden="true"><use href="#icon-{{ has_card ? 'edit' : 'add' }}" /></svg>
                         </button>
                         <button type="button" data-action="delete-card" data-slug="{{ id }}" data-name="{{ title }}" title="Supprimer la fiche" aria-label="Supprimer la fiche">
                             <svg aria-hidden="true"><use href="#icon-delete" /></svg>
                         </button>
+                        {% endif %}
                     </span>{% endif %}</h1>
                 {% if not has_card %}
                 <p class="missing-card">{{ config.labels.missing_card }}</p>
@@ -67,24 +82,35 @@
 
                 {% if relations %}
                 <section class="relations" aria-labelledby="relations-title">
-                    <h3 id="relations-title">{{ config.labels.relations }}</h3>
+                    <h3 id="relations-title">{{ relations_title ?: config.labels.relations }}</h3>
                     <dl>
                         {% for relation in relations %}
+                        {% if relation.label %}
                         <dt class="{{ relation.negative ? 'negative' : '' }}">
                             {{ relation.label }}
                             {% if relation.negative %}<span class="badge">{{ config.labels.negative }}</span>{% endif %}
                         </dt>
+                        {% endif %}
                         <dd>
                             {% for person in relation.persons %}
                             <a href="{{ person.url }}" class="tag{{ person.has_card ? '' : ' no-card' }}">{{ person.name }}</a>
                             {% if person.note %}<span class="note">({{ person.note }})</span>{% endif %}
                             {% if config.dev %}<span class="dev-actions">
+                                {% if person.membership %}
+                                <button type="button" data-action="edit-membership" data-person="{{ person.membership.person }}" data-group="{{ person.membership.group }}" data-note="{{ person.note }}" title="Modifier" aria-label="Modifier le tag {{ person.membership.group }} de {{ person.membership.person }}">
+                                    <svg aria-hidden="true"><use href="#icon-edit" /></svg>
+                                </button>
+                                <button type="button" data-action="delete-membership" data-person="{{ person.membership.person }}" data-group="{{ person.membership.group }}" title="Retirer" aria-label="Retirer le tag {{ person.membership.group }} de {{ person.membership.person }}">
+                                    <svg aria-hidden="true"><use href="#icon-delete" /></svg>
+                                </button>
+                                {% else %}
                                 <button type="button" data-action="edit-relation" data-key="{{ person.relation.key }}" data-tag="{{ person.relation.tag }}" data-to="{{ person.name }}" data-note="{{ person.note }}" title="Modifier la relation" aria-label="Modifier la relation avec {{ person.name }}">
                                     <svg aria-hidden="true"><use href="#icon-edit" /></svg>
                                 </button>
                                 <button type="button" data-action="delete-relation" data-key="{{ person.relation.key }}" data-label="{{ relation.label }} : {{ person.name }}" title="Supprimer la relation" aria-label="Supprimer la relation avec {{ person.name }}">
                                     <svg aria-hidden="true"><use href="#icon-delete" /></svg>
                                 </button>
+                                {% endif %}
                             </span>{% endif %}
                             {% endfor %}
                         </dd>
@@ -108,7 +134,7 @@
             </article>
 
             <div class="column-2">
-                <div id="graph-container" class="graph" data-node="{{ id }}" role="img" aria-label="{{ config.labels.graph }}"></div>
+                <div id="graph-container" class="graph" data-node="{{ id }}" data-group="{{ group }}" role="img" aria-label="{{ config.labels.graph }}"></div>
             </div>
         </main>
     </body>

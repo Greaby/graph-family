@@ -60,3 +60,20 @@ test("la disposition est identique d'un build à l'autre", () => {
 
     assert.deepStrictEqual(positions(build(cards).graph), positions(build(cards).graph));
 });
+
+test("un tag relie ses membres et a sa propre page", () => {
+    const { graph, root } = build({
+        "a.md": "# Alice\n\ntags : École (1990), Club",
+        "b.md": "# Bob\n\nami : Alice\ntags : école",
+    });
+
+    assert.ok(graph.hasNode("#ecole"));
+    assert.strictEqual(graph.getNodeAttribute("#ecole", "kind"), "tag");
+    assert.deepStrictEqual(graph.neighbors("#ecole").sort(), ["alice", "bob"]);
+    assert.strictEqual(graph.getEdgeAttribute("alice", "#ecole", "note"), "1990");
+    assert.ok(!graph.hasNode("ecole"), "un tag n'est pas une personne");
+    assert.ok(fs.existsSync(path.join(root, "dist/tag-ecole.html")));
+
+    const page = fs.readFileSync(path.join(root, "dist/personne-alice.html"), "utf-8");
+    assert.match(page, /href="tag-club.html"/);
+});

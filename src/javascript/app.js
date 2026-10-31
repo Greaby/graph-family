@@ -6,7 +6,10 @@ const report = (error) => console.error(error);
 
 const container = document.getElementById("graph-container");
 const graph = container
-    ? init_graph(container, document.querySelector("input[name=show-negative]")).catch(report)
+    ? init_graph(container, {
+          negative_toggle: document.querySelector("input[name=show-negative]"),
+          groups_toggle: document.querySelector("input[name=show-groups]"),
+      }).catch(report)
     : Promise.resolve();
 
 const input = document.querySelector("input[type=search]");
