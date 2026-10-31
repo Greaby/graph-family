@@ -112,7 +112,9 @@ export default (current_name = "") => {
             if (!response.ok) throw new Error(result.error);
 
             const verb = replace ? "Modifié" : "Ajouté";
-            set_status(result.changed ? `✔ ${verb} dans ${result.file}` : "Cette relation existe déjà");
+            set_status(
+                result.changed ? `✔ ${verb} dans ${result.files.join(" et ") || "les fiches"}` : "Cette relation existe déjà"
+            );
             reset();
             form.elements.to.focus();
         } catch (error) {

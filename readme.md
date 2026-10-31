@@ -74,6 +74,8 @@ The layout is deterministic (`seed` in the config): the same cards always give t
 
 Typing `-marié` in the relation field creates a negative relation. If the card already has a line for that tag, the name is appended to it (`parent : A, B`).
 
+Editing is **bidirectional**: the relation is written in both cards, using the inverse type on the other side (`parent : B` in A's card adds `enfant : A` to B's card, creating B's card if needed). Editing or deleting a relation updates both cards, and so does adding or removing relation lines in the card editing dialog. Cards edited outside the dev server (in a text editor) are not synced.
+
 Small icons also let you:
 
 - **edit or delete a relation** (next to each listed person). A relation is removed from every card where it is written, including the other person's card;

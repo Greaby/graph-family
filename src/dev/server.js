@@ -127,13 +127,34 @@ const update_all_cards = (transform, except = null) => {
         });
 };
 
+// Read a person's card (or start a new one), apply `transform(content, title)`
+// and write it if it changed
+const edit_card = (name, transform) => {
+    const person = generator.persons.get(get_slug(name));
+    const file = person?.file ?? path.join(persons_folder(), `${get_slug(name)}.md`);
+    const content = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
+    const updated = transform(content, person?.name ?? name);
+
+    if (updated !== content) write_file(file, updated);
+    return { file: path.relative(ROOT, file), changed: updated !== content };
+};
+
+// The same relation written from the other person's side:
+// "A — parent : B" becomes "B — enfant : A"
+const inverse_of = ({ tag, negated, note }, from_name) => ({
+    tag: generator.types.inverse(generator.types.resolve(tag).type),
+    negated,
+    name: from_name,
+    note,
+});
+
 const find_relation = (key) => {
     const relation = generator.relations.get(key);
     if (!relation) throw new Error("Relation introuvable, la page n'est peut-être pas à jour");
     return relation;
 };
 
-// Remove a relation from every card where it is written
+// Remove a relation from every card where it is written (both sides)
 const delete_relation_sources = (relation) => {
     relation.sources.forEach(({ file, tag, negated, name }) => {
         const content = fs.readFileSync(file, "utf-8");
@@ -142,9 +163,51 @@ const delete_relation_sources = (relation) => {
     });
 };
 
+// Relations listed in a card, keyed by "other person|type|negated"
+const card_relations = (content, own_slug) => {
+    const relations = new Map();
+    parse_person(content).relations.forEach(({ tag, negated, persons }) => {
+        const { type } = generator.types.resolve(tag);
+        persons
+            .filter(({ name }) => get_slug(name) && get_slug(name) !== own_slug)
+            .forEach(({ name, note }) => {
+                relations.set(`${get_slug(name)}|${type}|${negated}`, { tag: type, negated, name, note });
+            });
+    });
+    return relations;
+};
+
+// Keep the other cards in sync after a card was edited by hand: relations
+// added to the card are written on the other side, removed ones are removed
+const sync_other_cards = (name, old_content, new_content) => {
+    const own_slug = get_slug(name);
+    const before = card_relations(old_content, own_slug);
+    const after = card_relations(new_content, own_slug);
+    const files = new Set();
+
+    before.forEach((relation, key) => {
+        if (after.has(key)) return;
+        const inverse = inverse_of(relation, name);
+        const result = edit_card(relation.name, (content) =>
+            content ? remove_relation(content, inverse, generator.types) : content
+        );
+        if (result.changed) files.add(result.file);
+    });
+
+    after.forEach((relation, key) => {
+        if (before.has(key)) return;
+        const result = edit_card(relation.name, (content, title) =>
+            add_relation(content, inverse_of(relation, name), title, generator.types)
+        );
+        if (result.changed) files.add(result.file);
+    });
+
+    return [...files];
+};
+
 // POST /__dev/relations { from, tag, to, note, replace? }
-// Write the relation in the card of `from`. `replace`: key of a relation to
-// replace (edit).
+// Write the relation in the card of `from`, and its inverse in the card of `to`.
+// `replace`: key of a relation to replace (edit).
 const save_relation = async (request, response) => {
     const { from = "", tag = "", to = "", note = "", replace = null } = await read_json(request);
 
@@ -160,22 +223,24 @@ const save_relation = async (request, response) => {
         throw new Error("Une personne ne peut pas être en relation avec elle-même");
     }
 
-    const person = generator.persons.get(get_slug(from_name));
-    const file = person?.file ?? path.join(persons_folder(), `${get_slug(from_name)}.md`);
     const relation = { tag: tag.trim().replace(/^-/, ""), negated: tag.trim().startsWith("-"), name: to_name, note };
+    const inverse = inverse_of(relation, from_name);
 
-    // Validate the new relation before removing the old one
+    // Validate both sides before removing the old relation
     add_relation("", relation, from_name);
+    add_relation("", inverse, to_name);
     if (replace) delete_relation_sources(find_relation(replace));
 
-    const content = fs.existsSync(file) ? fs.readFileSync(file, "utf-8") : "";
-    const updated = add_relation(content, relation, from_name);
-    if (updated !== content) write_file(file, updated);
+    // The relation is written in both cards
+    const results = [
+        edit_card(from_name, (content, title) => add_relation(content, relation, title, generator.types)),
+        edit_card(to_name, (content, title) => add_relation(content, inverse, title, generator.types)),
+    ];
 
     await rebuild({ assets: false });
     send_json(response, 200, {
-        file: path.relative(ROOT, file),
-        changed: Boolean(replace) || updated !== content,
+        files: results.filter((result) => result.changed).map((result) => result.file),
+        changed: Boolean(replace) || results.some((result) => result.changed),
     });
 };
 
@@ -206,7 +271,8 @@ const read_card = (slug, response) => {
 };
 
 // PUT /__dev/cards/:slug { content }: save the card. If the name changes,
-// the file is renamed and the other cards are updated.
+// the file is renamed and the other cards are updated. Relations added or
+// removed in the card are added or removed in the other person's card too.
 const save_card = async (slug, request, response) => {
     const person = find_person(slug);
     const { content = "" } = await read_json(request);
@@ -216,6 +282,7 @@ const save_card = async (slug, request, response) => {
     if (!new_slug) throw new Error("La fiche doit commencer par un titre : # Nom Prénom");
 
     let file = person.file ?? path.join(persons_folder(), `${slug}.md`);
+    const old_content = person.file ? fs.readFileSync(person.file, "utf-8") : "";
 
     if (new_slug !== slug) {
         if (generator.persons.get(new_slug)?.file) {
@@ -236,8 +303,10 @@ const save_card = async (slug, request, response) => {
     }
 
     write_file(file, content.endsWith("\n") ? content : `${content}\n`);
+    const synced = sync_other_cards(card.name, old_content, content);
+
     await rebuild({ assets: false });
-    send_json(response, 200, { url: page_url(new_slug), file: path.relative(ROOT, file) });
+    send_json(response, 200, { url: page_url(new_slug), file: path.relative(ROOT, file), synced });
 };
 
 // DELETE /__dev/cards/:slug: delete the card and every relation to this person

@@ -52,6 +52,15 @@ const join_card = ({ head, block, rest }) => {
 const same_tag = (relation, tag, negated) =>
     relation.negated === negated && normalize_tag(relation.tag) === normalize_tag(tag);
 
+// With `types` (RelationTypes), aliases match too: "fils" and "enfant" are the same type
+const same_type = (relation, tag, negated, types) =>
+    types
+        ? relation.negated === negated && types.resolve(relation.tag).type === types.resolve(tag).type
+        : same_tag(relation, tag, negated);
+
+const lists_person = (relation, name) =>
+    relation.persons.some((person) => get_slug(person.name) === get_slug(name));
+
 // Apply `transform(relation, person)` to every person listed in the relation
 // block: return the (possibly modified) person, or null to remove it
 const map_relations = (content, transform) => {
@@ -74,24 +83,26 @@ const map_relations = (content, transform) => {
 };
 
 // Add a relation to the relation block of a card.
-// If a line already exists for this tag, the name is appended to it
+// If a line already exists for this exact tag, the name is appended to it
 // ("parent : A" => "parent : A, B"), otherwise a line is added at the end of the block.
-const add_relation = (content, { tag, negated = false, name, note = null }, title = name) => {
+// Nothing changes if the relation is already there (under any alias when `types` is given).
+const add_relation = (content, { tag, negated = false, name, note = null }, title = name, types = null) => {
     tag = tag.trim().replace(/^-/, "");
     name = name.trim();
     note = note?.trim() || null;
     validate({ tag, name, note });
 
     const card = split_card(content || `# ${title}\n`);
-    const index = card.block.findIndex((line) => same_tag(parse_relation(line), tag, negated));
+    const relations = card.block.map(parse_relation);
 
+    if (relations.some((relation) => same_type(relation, tag, negated, types) && lists_person(relation, name))) {
+        return content;
+    }
+
+    const index = relations.findIndex((relation) => same_tag(relation, tag, negated));
     if (index === -1) {
         card.block.push(`${negated ? "-" : ""}${tag} : ${format_person({ name, note })}`);
     } else {
-        const relation = parse_relation(card.block[index]);
-        if (relation.persons.some((person) => get_slug(person.name) === get_slug(name))) {
-            return content;
-        }
         card.block[index] = `${card.block[index].trimEnd()}, ${format_person({ name, note })}`;
     }
 
@@ -99,10 +110,11 @@ const add_relation = (content, { tag, negated = false, name, note = null }, titl
 };
 
 // Remove one specific relation (tag + person) from a card
-const remove_relation = (content, { tag, negated = false, name }) =>
+// (under any alias when `types` is given)
+const remove_relation = (content, { tag, negated = false, name }, types = null) =>
     join_card(
         map_relations(content, (relation, person) =>
-            same_tag(relation, tag, negated) && get_slug(person.name) === get_slug(name) ? null : person
+            same_type(relation, tag, negated, types) && get_slug(person.name) === get_slug(name) ? null : person
         )
     );
 

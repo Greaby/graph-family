@@ -76,3 +76,22 @@ test("renomme une personne partout dans une fiche", () => {
     const result = rename_person("# A\n\nparent : B (note), C\n\nVoir [[b]].\n", "B", "Bob");
     assert.strictEqual(result, "# A\n\nparent : Bob (note), C\n\nVoir [[Bob]].\n");
 });
+
+const RelationTypes = require("../src/generator/relations");
+const types = new RelationTypes({
+    relations: {
+        parent: { aliases: ["père"], inverse: "enfant" },
+        enfant: { aliases: ["fils", "fille"], inverse: "parent" },
+    },
+});
+
+test("reconnaît une relation existante écrite avec un alias", () => {
+    const content = "# A\n\nfils : B\n";
+    assert.strictEqual(add_relation(content, { tag: "enfant", name: "B" }, "A", types), content);
+    assert.strictEqual(add_relation(content, { tag: "enfant", name: "C" }, "A", types), "# A\n\nfils : B\nenfant : C\n");
+});
+
+test("retire une relation écrite avec un alias", () => {
+    const result = remove_relation("# A\n\nfils : B, C\nfille : D\n", { tag: "enfant", name: "B" }, types);
+    assert.strictEqual(result, "# A\n\nfils : C\nfille : D\n");
+});
