@@ -6,7 +6,7 @@ const FORBIDDEN = /[\n\r:,;()[\]]/;
 
 const format_person = ({ name, note }) => (note ? `${name} (${note})` : name);
 
-// Vérifie qu'une valeur saisie ne cassera pas la syntaxe des fiches
+// Make sure a user-provided value won't break the card syntax
 const validate = ({ tag, name, note }) => {
     if (!tag || !/^\p{L}[\p{L}\p{M}'’ ·-]{0,40}$/u.test(tag.trim())) {
         throw new Error(`Tag invalide : « ${tag} »`);
@@ -19,7 +19,7 @@ const validate = ({ tag, name, note }) => {
     }
 };
 
-// Découpe une fiche en : en-tête (titre), bloc de relations, reste du texte
+// Split a card into: head (title), relation block, rest of the text
 const split_card = (content) => {
     const lines = content.replace(/\r\n?/g, "\n").split("\n");
 
@@ -35,7 +35,7 @@ const split_card = (content) => {
     return {
         head,
         block: lines.slice(block_start, index),
-        // texte sans relations : on garde tout ce qui suit le titre tel quel
+        // no relations: keep everything after the title as is
         rest: index > block_start ? lines.slice(index) : lines.slice(head.length),
     };
 };
@@ -52,8 +52,8 @@ const join_card = ({ head, block, rest }) => {
 const same_tag = (relation, tag, negated) =>
     relation.negated === negated && normalize_tag(relation.tag) === normalize_tag(tag);
 
-// Applique `transform(relation, person)` à chaque personne citée dans le bloc de
-// relations : renvoyer la personne (éventuellement modifiée) ou null pour la retirer
+// Apply `transform(relation, person)` to every person listed in the relation
+// block: return the (possibly modified) person, or null to remove it
 const map_relations = (content, transform) => {
     const card = split_card(content);
 
@@ -73,9 +73,9 @@ const map_relations = (content, transform) => {
     return card;
 };
 
-// Ajoute une relation au bloc de relations d'une fiche.
-// Si une ligne existe déjà pour ce tag, le nom y est ajouté
-// ("parent : A" => "parent : A, B"), sinon une ligne est créée à la fin du bloc.
+// Add a relation to the relation block of a card.
+// If a line already exists for this tag, the name is appended to it
+// ("parent : A" => "parent : A, B"), otherwise a line is added at the end of the block.
 const add_relation = (content, { tag, negated = false, name, note = null }, title = name) => {
     tag = tag.trim().replace(/^-/, "");
     name = name.trim();
@@ -98,7 +98,7 @@ const add_relation = (content, { tag, negated = false, name, note = null }, titl
     return join_card(card);
 };
 
-// Retire une relation précise (tag + personne) d'une fiche
+// Remove one specific relation (tag + person) from a card
 const remove_relation = (content, { tag, negated = false, name }) =>
     join_card(
         map_relations(content, (relation, person) =>
@@ -113,7 +113,7 @@ const replace_wiki_links = (lines, name, replacement) =>
         )
     );
 
-// Retire toutes les relations vers une personne ([[Nom]] devient du texte simple)
+// Remove every relation to a person ([[Name]] becomes plain text)
 const remove_person = (content, name) => {
     const card = map_relations(content, (_relation, person) =>
         get_slug(person.name) === get_slug(name) ? null : person
@@ -122,7 +122,7 @@ const remove_person = (content, name) => {
     return join_card(card);
 };
 
-// Renomme une personne dans les relations et les liens [[Nom]]
+// Rename a person in the relations and [[Name]] links
 const rename_person = (content, old_name, new_name) => {
     validate({ tag: "x", name: new_name });
     const card = map_relations(content, (_relation, person) =>

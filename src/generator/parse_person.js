@@ -1,14 +1,14 @@
-// Une fiche ressemble à :
+// A card looks like:
 //
-//   # Nom Prénom
+//   # Last First
 //
-//   parent : Nom Prénom, Nom Prénom
-//   -marié : Nom Prénom (1990-2001)
+//   parent : Last First, Last First
+//   -marié : Last First (1990-2001)
 //
-//   Texte libre en markdown...
+//   Free markdown text...
 //
-// Le bloc de relations est la suite de lignes "tag : noms" qui suit le titre.
-// Il s'arrête à la première ligne vide ou qui n'est pas une relation.
+// The relation block is the run of "tag : names" lines right after the title.
+// It ends at the first blank line or the first line that is not a relation.
 
 const TITLE_REGEX = /^#\s+(.+?)\s*#*\s*$/;
 const RELATION_REGEX =
@@ -36,7 +36,7 @@ const parse_relation = (line) => {
 
     const [, negation, tag, names] = match;
 
-    // Évite de prendre une URL ("https://...") pour une relation
+    // Don't mistake a URL ("https://...") for a relation
     if (names.startsWith("//")) {
         return null;
     }

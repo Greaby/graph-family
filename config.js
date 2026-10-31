@@ -2,7 +2,7 @@ module.exports = {
     base_url: "https://greaby.github.io/graph-family/",
     language: "fr",
 
-    // Graine du générateur aléatoire : même données => même graphe
+    // Random generator seed: same data => same graph
     seed: "graph-family",
 
     folders: {
@@ -23,19 +23,19 @@ module.exports = {
         description: "Graphe interactif des relations familiales et amicales",
     },
 
-    // Types de relations.
+    // Relation types.
     //
-    // - label   : libellé affiché sur les fiches
-    // - aliases : autres tags acceptés dans les fiches pour ce type
-    // - inverse : type vu depuis l'autre personne (parent <-> enfant).
-    //             Absent = relation symétrique (ami <-> ami).
-    // - weight  : force d'attraction dans le graphe. Une valeur négative
-    //             repousse les deux personnes.
+    // - label   : label displayed on the cards
+    // - aliases : other tags accepted in the cards for this type
+    // - inverse : type as seen from the other person (parent <-> enfant).
+    //             Missing = symmetric relation (ami <-> ami).
+    // - weight  : attraction strength in the graph. A negative value pushes
+    //             both people apart.
     //
-    // Préfixer un tag par "-" dans une fiche (ex: "-marié") force la relation
-    // en négatif : elle repousse au lieu d'attirer.
+    // Prefixing a tag with "-" in a card (e.g. "-marié") makes the relation
+    // negative: it repels instead of attracting.
     //
-    // Un tag inconnu est accepté tel quel : symétrique, de poids
+    // An unknown tag is accepted as is: symmetric, weighted
     // `default_relation_weight`.
     relations: {
         parent: { label: "Parent", aliases: ["père", "mère"], inverse: "enfant", weight: 3 },
@@ -59,11 +59,11 @@ module.exports = {
         node_min_size: 4,
         node_max_size: 18,
 
-        // Distance minimale (en multiple de la longueur médiane des liens
-        // positifs) visée entre deux personnes liées négativement
+        // Target minimum distance (as a multiple of the median positive edge
+        // length) between two negatively linked people
         negative_distance: 4,
         layout_iterations: 2000,
-        // Nombre de personnes proches listées sur une fiche
+        // Number of nearby people listed on a card
         nearby_count: 6,
     },
 

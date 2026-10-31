@@ -12,8 +12,8 @@ const median = (values) => {
     return sorted[Math.floor(sorted.length / 2)];
 };
 
-// Longueur de référence : médiane des liens positifs, ou à défaut distance
-// moyenne au centre (graphe sans liens positifs)
+// Reference length: median of the positive edges, or else the median distance
+// to the center (graph without positive edges)
 const reference_length = (graph) => {
     const lengths = graph.mapEdges((_e, _a, _s, _t, source, target) =>
         distance(source, target)
@@ -28,7 +28,7 @@ const reference_length = (graph) => {
     return median(nodes.map((n) => distance(n, { x: cx, y: cy }))) || 1;
 };
 
-// Écarte les paires reliées négativement jusqu'à une distance cible
+// Push negatively linked pairs apart up to a target distance
 const apply_negative_edges = (graph, negatives, distance_factor, rng) => {
     const target = reference_length(graph) * distance_factor;
 
@@ -49,7 +49,7 @@ const apply_negative_edges = (graph, negatives, distance_factor, rng) => {
             d = 1;
         }
 
-        // Plus le poids négatif est fort, plus l'écart est appliqué vite
+        // The stronger the negative weight, the faster the pair is pushed apart
         const strength = Math.min(1, Math.abs(weight) / 4) * 0.5;
         const shift = ((target - d) / 2) * strength;
 
@@ -64,8 +64,8 @@ const apply_negative_edges = (graph, negatives, distance_factor, rng) => {
     });
 };
 
-// ForceAtlas2 ne gère pas les poids négatifs : les liens positifs attirent via
-// ForceAtlas2, les liens négatifs sont appliqués entre chaque lot d'itérations
+// ForceAtlas2 doesn't support negative weights: positive edges attract through
+// ForceAtlas2, negative edges are applied between each batch of iterations
 module.exports = (graph, { iterations = 2000, negative_distance = 4, rng = Math.random } = {}) => {
     const layout_graph = new UndirectedGraph();
     const negatives = [];

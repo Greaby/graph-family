@@ -1,5 +1,5 @@
-// Serveur de développement : sert le site, le régénère quand une fiche ou une
-// source change, et permet d'ajouter des relations depuis le navigateur.
+// Development server: serves the site, rebuilds it when a card or a source
+// file changes, and lets you edit relations and cards from the browser.
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
@@ -32,8 +32,8 @@ const broadcast = (event, data = {}) => {
     clients.forEach((response) => response.write(message));
 };
 
-// Les builds sont mis en file : jamais deux en parallèle, et les demandes
-// arrivées pendant un build sont regroupées en un seul build suivant
+// Builds are queued: never two at once, and requests received during a build
+// are merged into a single next build
 let running = Promise.resolve();
 let queued = null;
 
@@ -60,7 +60,7 @@ const rebuild = ({ assets = true } = {}) => {
     return next.promise;
 };
 
-// Fichiers écrits par l'éditeur : leur build est déjà lancé par l'API
+// Files written by the editor: the API already triggers their build
 const written_by_api = new Map();
 
 const watch = () => {
@@ -116,7 +116,7 @@ const persons_folder = () => path.join(ROOT, generator.config.folders.persons);
 const card_files = () => [...generator.persons.values()].filter((p) => p.file).map((p) => p.file);
 const page_url = (slug) => `personne-${slug}.html`;
 
-// Applique `transform` à toutes les fiches, n'écrit que celles qui changent
+// Apply `transform` to every card, only writing the ones that change
 const update_all_cards = (transform, except = null) => {
     card_files()
         .filter((file) => file !== except && fs.existsSync(file))
@@ -133,7 +133,7 @@ const find_relation = (key) => {
     return relation;
 };
 
-// Retire une relation de toutes les fiches où elle est écrite
+// Remove a relation from every card where it is written
 const delete_relation_sources = (relation) => {
     relation.sources.forEach(({ file, tag, negated, name }) => {
         const content = fs.readFileSync(file, "utf-8");
@@ -143,12 +143,12 @@ const delete_relation_sources = (relation) => {
 };
 
 // POST /__dev/relations { from, tag, to, note, replace? }
-// Écrit la relation dans la fiche de `from`. `replace` : clé d'une relation à
-// remplacer (modification).
+// Write the relation in the card of `from`. `replace`: key of a relation to
+// replace (edit).
 const save_relation = async (request, response) => {
     const { from = "", tag = "", to = "", note = "", replace = null } = await read_json(request);
 
-    // Réutilise l'orthographe exacte d'une personne existante
+    // Reuse the exact spelling of an existing person
     const canonical = (name) => generator.persons.get(get_slug(name))?.name ?? name.trim();
     const from_name = canonical(from);
     const to_name = canonical(to);
@@ -164,7 +164,7 @@ const save_relation = async (request, response) => {
     const file = person?.file ?? path.join(persons_folder(), `${get_slug(from_name)}.md`);
     const relation = { tag: tag.trim().replace(/^-/, ""), negated: tag.trim().startsWith("-"), name: to_name, note };
 
-    // Valide la nouvelle relation avant de supprimer l'ancienne
+    // Validate the new relation before removing the old one
     add_relation("", relation, from_name);
     if (replace) delete_relation_sources(find_relation(replace));
 
@@ -193,7 +193,7 @@ const find_person = (slug) => {
     return person;
 };
 
-// GET /__dev/cards/:slug : contenu markdown brut de la fiche
+// GET /__dev/cards/:slug: raw markdown content of the card
 const read_card = (slug, response) => {
     const person = find_person(slug);
     const content = person.file ? fs.readFileSync(person.file, "utf-8") : `# ${person.name}\n\n`;
@@ -205,8 +205,8 @@ const read_card = (slug, response) => {
     });
 };
 
-// PUT /__dev/cards/:slug { content } : enregistre la fiche. Si le nom change,
-// le fichier est renommé et les autres fiches sont mises à jour.
+// PUT /__dev/cards/:slug { content }: save the card. If the name changes,
+// the file is renamed and the other cards are updated.
 const save_card = async (slug, request, response) => {
     const person = find_person(slug);
     const { content = "" } = await read_json(request);
@@ -224,7 +224,7 @@ const save_card = async (slug, request, response) => {
 
         update_all_cards((text) => rename_person(text, person.name, card.name), person.file);
 
-        // Fichier nommé d'après l'ancien nom : il suit le nouveau nom
+        // File named after the old name: it follows the new name
         if (person.file && path.basename(person.file, ".md") === slug) {
             const renamed = path.join(path.dirname(person.file), `${new_slug}.md`);
             written_by_api.set(person.file, Date.now());
@@ -240,7 +240,7 @@ const save_card = async (slug, request, response) => {
     send_json(response, 200, { url: page_url(new_slug), file: path.relative(ROOT, file) });
 };
 
-// DELETE /__dev/cards/:slug : supprime la fiche et les relations vers cette personne
+// DELETE /__dev/cards/:slug: delete the card and every relation to this person
 const delete_card = async (slug, response) => {
     const person = find_person(slug);
 

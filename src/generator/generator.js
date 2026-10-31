@@ -44,7 +44,7 @@ class Generator {
     }
 
     generate() {
-        // Même graine => même disposition à chaque build
+        // Same seed => same layout on every build
         this.rng = seedrandom(this.config.seed);
 
         this.load_persons();
@@ -116,8 +116,8 @@ class Generator {
         });
     }
 
-    // `source` : où la relation est écrite (une relation déclarée dans les deux
-    // fiches a deux sources), pour pouvoir la modifier depuis l'éditeur
+    // `source`: where the relation is written (a relation declared in both
+    // cards has two sources), so the editor can change it
     add_relation(from, to, { type, negated, weight }, note, source) {
         const key = this.types.canonical_key(from, to, type, negated);
         if (this.relations.has(key)) {
@@ -147,7 +147,7 @@ class Generator {
 
             graph.updateEdge(from, to, (attributes) => ({
                 weight: (attributes.weight || 0) + weight,
-                // [personne de référence, rôle de l'autre vu par elle, rôle inverse, négatif]
+                // [reference person, role of the other one seen by them, inverse role, negated]
                 rel: [...(attributes.rel || []), [from, label, inverse_label, negated ? 1 : 0]],
             }));
 
@@ -174,7 +174,7 @@ class Generator {
             rng: this.rng,
         });
 
-        // Centralité et communautés calculées sur les seuls liens positifs
+        // Centrality and communities are computed on positive edges only
         const positive = new UndirectedGraph();
         graph.forEachNode((node) => positive.addNode(node));
         graph.forEachEdge((_edge, { weight }, source, target) => {
@@ -227,7 +227,7 @@ class Generator {
         return { slug, name: person.name, url: page_url(slug), has_card: person.has_card };
     }
 
-    // Regroupe les relations d'une personne par type, dans l'ordre de la config
+    // Group the relations of a person by type, in config order
     grouped_relations(person) {
         const order = Object.keys(this.types.types);
         const groups = new Map();
@@ -257,7 +257,7 @@ class Generator {
         return relations ? `${person.name} — ${relations}` : person.name;
     }
 
-    // [[Nom Prénom]] dans le texte devient un lien vers la fiche
+    // [[Last First]] in the text becomes a link to the card
     render_markdown(content) {
         const html = this.markdown.render(content);
         return html.replace(/\[\[([^\]]+)\]\]/g, (match, name) => {
@@ -267,7 +267,7 @@ class Generator {
         });
     }
 
-    // Seule la partie de la config utile au navigateur est injectée dans les pages
+    // Only the part of the config the browser needs is injected in the pages
     front_config() {
         const { colors, edge_colors, negative_edge_color, current_node, dev } = this.config;
         const front = { colors, edge_colors, negative_edge_color, current_node_color: current_node.color };
@@ -307,7 +307,7 @@ class Generator {
             graph.updateNodeAttribute(node, "x", Math.round);
             graph.updateNodeAttribute(node, "y", Math.round);
         });
-        // Clés de liens stables d'un build à l'autre (graphology génère des clés aléatoires)
+        // Stable edge keys across builds (graphology generates random keys)
         const data = graph.export();
         data.edges.forEach((edge, index) => (edge.key = String(index)));
         fs.writeFileSync(path.join(this.dist, "graph.json"), JSON.stringify(data));

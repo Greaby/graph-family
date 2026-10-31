@@ -1,4 +1,4 @@
-// Formulaire d'ajout de relation, disponible uniquement en mode dev
+// Relation form, only available in dev mode
 import config from "./config.js";
 
 const element = (tag, attributes = {}, children = []) => {
@@ -64,7 +64,7 @@ export default (current_name = "") => {
         status.classList.toggle("error", error);
     };
 
-    // Mode modification : la relation `key` sera remplacée à l'enregistrement
+    // Edit mode: the `key` relation is replaced on save
     let replace = null;
 
     const reset = () => {

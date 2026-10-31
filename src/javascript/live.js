@@ -1,4 +1,4 @@
-// Mode dev : éditeur de relations + mise à jour en direct quand le site est régénéré
+// Dev mode: relation editor + live update when the site is rebuilt
 import create_editor from "./editor.js";
 import init_actions from "./dev_actions.js";
 
@@ -9,7 +9,7 @@ const mount = (editor) => {
     article?.querySelector(".content")?.before(editor.form);
 };
 
-// Remplace le contenu de la fiche par sa version régénérée, sans recharger la page
+// Replace the card content with its rebuilt version, without reloading the page
 const refresh_article = async (editor) => {
     const response = await fetch(window.location.href, { cache: "no-cache" });
     if (!response.ok) return;

@@ -4,7 +4,7 @@ const sass = require("sass");
 
 const Generator = require("./src/generator/generator");
 
-// Relit config.js à chaque build (utile en mode dev)
+// Reload config.js on every build (useful in dev mode)
 const load_config = () => {
     delete require.cache[require.resolve("./config")];
     return require("./config");
@@ -33,7 +33,7 @@ const build_assets = async (dist, dev) => {
     fs.cpSync("src/static", `${dist}/static`, { recursive: true });
 };
 
-// assets: false ne régénère que les pages (quand seules les fiches ont changé)
+// assets: false only regenerates the pages (when only the cards changed)
 const build = async ({ dev = false, assets = true } = {}) => {
     const start = Date.now();
     const config = load_config();

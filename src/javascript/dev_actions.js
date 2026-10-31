@@ -1,4 +1,4 @@
-// Mode dev : icônes de modification / suppression des relations et des fiches
+// Dev mode: edit / delete icons for relations and cards
 const request = async (method, url, body) => {
     const response = await fetch(url, {
         method,

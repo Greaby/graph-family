@@ -1,4 +1,4 @@
-name: Générer et publier le site
+name: Build and deploy the site
 
 on:
     push:

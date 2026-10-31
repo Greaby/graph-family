@@ -1,6 +1,6 @@
 const normalize_tag = (tag) => tag.trim().toLowerCase().replace(/\s+/g, "-");
 
-// Résout les tags écrits dans les fiches vers les types déclarés dans la config
+// Resolve the tags written in the cards to the types declared in the config
 module.exports = class RelationTypes {
     constructor(config) {
         this.types = {};
@@ -56,8 +56,8 @@ module.exports = class RelationTypes {
         return this.get(type_key).label;
     }
 
-    // Clé identique pour (A parent de B) et (B enfant de A), afin de ne pas
-    // compter deux fois une relation déclarée dans les deux fiches
+    // Same key for (A parent of B) and (B child of A), so that a relation
+    // declared in both cards is only counted once
     canonical_key(from, to, type_key, negated) {
         const inverse = this.inverse(type_key);
 

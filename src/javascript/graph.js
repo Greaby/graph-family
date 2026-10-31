@@ -7,7 +7,7 @@ const FADED_COLOR = "#f0f0f0";
 
 const pick = (list, index) => list[index % list.length];
 
-// Rôle de chaque voisin vu depuis `node` (ex: "Parent, -Marié·e")
+// Role of each neighbor as seen from `node` (e.g. "Parent, -Marié·e")
 const edge_label = (graph, edge, node) =>
     graph
         .getEdgeAttribute(edge, "rel")
@@ -22,7 +22,7 @@ const fetch_graph_data = async () => {
     return response.json();
 };
 
-// Couleurs et tailles d'affichage calculées à partir des données exportées
+// Display colors and sizes computed from the exported data
 const decorate = (graph) => {
     graph.updateEachNodeAttributes((_node, attributes) => ({
         ...attributes,
@@ -119,8 +119,8 @@ export default async (container, negative_toggle) => {
         renderer.getCamera().setState({ x, y, ratio: 1 });
     }
 
-    // Recharge graph.json en place : les personnes déjà présentes glissent
-    // de leur ancienne position vers la nouvelle
+    // Reload graph.json in place: existing people slide from their old
+    // position to the new one
     const update = async () => {
         const data = await fetch_graph_data();
         const previous = Object.fromEntries(graph.mapNodes((node, { x, y }) => [node, { x, y }]));
